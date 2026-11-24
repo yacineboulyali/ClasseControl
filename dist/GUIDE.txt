@@ -1,0 +1,82 @@
+╔══════════════════════════════════════════════════════════════════╗
+║   CLASSE_CONTROLE — Supervision de salle informatique (v1.0)       ║
+║   Équivalent libre et original de type "NetSupport School"         ║
+╚══════════════════════════════════════════════════════════════════╝
+
+Deux programmes, AUCUNE installation requise (un seul .exe chacun) :
+
+  • ClasseControle.Console.exe  → POSTE DU PROFESSEUR (la console)
+  • ClasseControle.Agent.exe    → POSTE DE L'ÉLÈVE (l'agent)
+
+Tous les postes doivent être sur le MÊME réseau local (même Wi-Fi / même
+switch / même sous-réseau).
+
+────────────────────────────────────────────────────────────────────
+1) SUR CHAQUE POSTE ÉLÈVE
+────────────────────────────────────────────────────────────────────
+  1. Copier « ClasseControle.Agent.exe » sur le poste.
+  2. Le lancer (double-clic). Il se réduit dans la zone de notification
+     (près de l'horloge) — une petite icône bleue.
+  3. Au 1er lancement, un fichier « agent.ini » est créé à côté de l'exe :
+
+         RoomCode=CLASSE
+         DisplayName=NOM-DU-PC
+
+     → Mettez le MÊME « RoomCode » (code de salle) sur tous les postes
+       et sur la console. Changez-le pour sécuriser votre salle.
+  4. Windows Firewall peut demander une autorisation : cochez
+     « Réseaux privés » et « Autoriser l'accès ».
+
+  Pour fermer l'agent : clic droit sur l'icône → « Quitter l'agent »
+  (le code de salle est demandé, pour éviter que les élèves le ferment).
+
+  Démarrage automatique (optionnel) : placez un raccourci de l'agent dans
+     shell:startup   (Win+R → taper « shell:startup » → Entrée)
+
+────────────────────────────────────────────────────────────────────
+2) SUR LE POSTE DU PROFESSEUR
+────────────────────────────────────────────────────────────────────
+  1. Lancer « ClasseControle.Console.exe ».
+  2. Saisir le MÊME « Code de salle » que les agents (ex : CLASSE).
+  3. Cliquer « 🔍 Rechercher les postes ».
+     → Les postes élèves apparaissent sous forme de cartes.
+
+  Actions globales (toute la classe, ou seulement les postes cochés) :
+     🔒 Tout verrouiller / 🔓 Tout déverrouiller
+     💬 Message à la classe
+     📁 Envoyer un fichier   (reçu dans Téléchargements\Classe_controle)
+     🚀 Lancer une application ou une URL
+     ✖  Fermer une application (par nom de processus, ex : chrome)
+
+  Sur chaque carte :
+     👁 Voir / Contrôler  → ouvre l'écran de l'élève en direct ;
+                            cochez « Prendre le contrôle » pour piloter
+                            sa souris et son clavier.
+     🔒 Verrouiller / 💬 Message → pour ce poste uniquement.
+
+  Astuce sélection : si vous cochez « Sélectionner » sur certaines cartes,
+  les actions globales ne s'appliquent QU'À ces postes. Sinon, à TOUS.
+
+────────────────────────────────────────────────────────────────────
+3) RÉSEAU / PARE-FEU
+────────────────────────────────────────────────────────────────────
+  Ports utilisés :  UDP 5401 (découverte)  +  TCP 5402 (contrôle)
+  Si la recherche ne trouve rien :
+    - Vérifier que prof et élèves ont le MÊME code de salle.
+    - Autoriser les deux .exe dans le Pare-feu Windows (réseau privé).
+    - Vérifier qu'ils sont sur le même sous-réseau (ex : 192.168.1.x).
+    - Certains Wi-Fi « invité » bloquent le trafic entre postes.
+
+────────────────────────────────────────────────────────────────────
+4) REMARQUES
+────────────────────────────────────────────────────────────────────
+  • Les .exe ne sont pas signés : Windows SmartScreen / l'antivirus
+    peuvent afficher un avertissement au 1er lancement
+    (« Informations complémentaires » → « Exécuter quand même »).
+  • Le contrôle à distance ne peut pas piloter les fenêtres UAC
+    (« Voulez-vous autoriser… ») ni un logiciel lancé en administrateur
+    si l'agent n'est pas lui-même administrateur.
+  • Outil destiné à un usage pédagogique encadré, sur des postes dont
+    vous avez la responsabilité. Informez les utilisateurs.
+
+Bon cours !  —  Classe_controle v1.0

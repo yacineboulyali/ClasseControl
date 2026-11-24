@@ -1,0 +1,13 @@
+# Build .NET
+bin/
+obj/
+publish/
+dist/*.exe
+*.user
+
+# Archives générées
+*.zip
+
+# Divers
+.vs/
+*.log
