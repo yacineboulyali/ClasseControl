@@ -27,7 +27,7 @@ internal sealed class StudentTile
     private readonly Image _thumb = new() { Stretch = Stretch.Uniform };
     private readonly Border _thumbBox;
     private readonly Border _overlay;
-    private readonly TextBlock _overlayGlyph = Glyph.Make(Glyph.Lock, 34, Brushes.White);
+    private readonly ContentControl _overlayGlyph = new() { HorizontalAlignment = HorizontalAlignment.Center };
     private readonly TextBlock _overlayText = new() { Foreground = Brushes.White, FontSize = 13, FontWeight = FontWeight.SemiBold, HorizontalAlignment = HorizontalAlignment.Center };
     private readonly Border _handBadge;
     private readonly TextBlock _footStudent = new() { FontSize = 11.5, FontWeight = FontWeight.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis };
@@ -249,7 +249,7 @@ internal sealed class StudentTile
 
     private void ShowOverlay(string glyph, string text)
     {
-        _overlayGlyph.Text = glyph;
+        _overlayGlyph.Content = Glyph.Make(glyph, 34, Brushes.White);
         _overlayText.Text = text;
         _overlay.IsVisible = true;
     }

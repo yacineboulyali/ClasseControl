@@ -40,6 +40,12 @@ ClasseControle.Console   Poste prof   (Avalonia)
   double-clic = voir l'écran, **clic droit = palette d'actions** (verrouiller,
   écran noir, voir, fichier, discussion, message, lancer, présenter, étoiles,
   gérer l'alimentation…)
+- **Icônes vectorielles maison**, flat design monochrome (aucune police ni
+  image à installer), qui réagissent au survol, à l'appui et à l'état actif
+  (diffusion/annonce en rouge, alerte en orange, séance en vert)
+- **Zoom des vignettes** en bas à droite : − / curseur / + (de 50 % à 240 %),
+  « Ajuster » (tous les postes visibles sans défiler), « 100 % », et
+  **Ctrl + molette** ; la résolution des miniatures suit le zoom
 - Les commandes s'appliquent à la **sélection**, ou à **toute la classe** si
   rien n'est sélectionné
 

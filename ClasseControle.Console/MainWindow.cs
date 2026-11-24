@@ -18,8 +18,8 @@ namespace ClasseControle.Console;
 /// </summary>
 internal sealed class MainWindow : Window
 {
-    private static readonly double[] TileWidths = { 210, 290, 410 };
-    private static readonly int[] ThumbResolutions = { 260, 380, 560 };
+    // Zoom des vignettes : 100 % = 290 px de large.
+    private const double ZoomBase = 290, ZoomMin = 150, ZoomMax = 700;
 
     private readonly ConsoleSettings _settings = ConsoleSettings.Load();
     private readonly Dictionary<string, StudentTile> _tiles = new();
@@ -39,12 +39,20 @@ internal sealed class MainWindow : Window
     private bool _thumbsLive = true;
 
     private Button _scanBtn = null!, _lessonBtn = null!, _showBtn = null!, _announceBtn = null!,
-                   _webBtn = null!, _helpBtn = null!, _liveBtn = null!;
+                   _webBtn = null!, _helpBtn = null!, _liveBtn = null!, _sideAnnounce = null!;
+    private readonly Dictionary<int, Button> _sideTabs = new();
+    private readonly Slider _zoom = new() { Minimum = ZoomMin, Maximum = ZoomMax, Width = 150, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(4, -6, 4, -6) };
+    private readonly TextBlock _zoomText = new() { Width = 44, FontSize = 12, VerticalAlignment = VerticalAlignment.Center, TextAlignment = TextAlignment.Right, Foreground = Palette.Muted };
+    private ScrollViewer _scroller = null!;
+    private DispatcherTimer? _zoomSettle;
 
+    private double TileWidth => Math.Clamp(_settings.TileWidth, ZoomMin, ZoomMax);
+
+    // Résolution des miniatures adaptée à la taille affichée (net sans gaspiller le réseau).
     private StartScreenPayload ThumbProfile => new()
     {
-        MaxWidth = ThumbResolutions[Math.Clamp(_settings.TileSize, 0, 2)],
-        Quality = 40,
+        MaxWidth = (int)Math.Clamp(TileWidth * 1.25, 240, 900),
+        Quality = TileWidth > 450 ? 50 : 40,
         Fps = Math.Clamp(_settings.ThumbFps, 1, 5),
     };
 
@@ -128,12 +136,19 @@ internal sealed class MainWindow : Window
 
         var sidebar = BuildSidebar();
 
-        var scroller = new ScrollViewer { Content = _grid, VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
+        var scroller = _scroller = new ScrollViewer { Content = _grid, VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
         var workspace = new Border
         {
             Background = Palette.Workspace,
             Child = new Grid { Children = { _emptyHint, scroller } },
         };
+        // Ctrl + molette : zoom des vignettes.
+        workspace.AddHandler(PointerWheelChangedEvent, (_, e) =>
+        {
+            if (!e.KeyModifiers.HasFlag(KeyModifiers.Control)) return;
+            SetZoom(TileWidth * (e.Delta.Y > 0 ? 1.1 : 1 / 1.1));
+            e.Handled = true;
+        }, Avalonia.Interactivity.RoutingStrategies.Tunnel);
         // Clic dans le vide : désélectionne tout (les commandes reviennent à toute la classe).
         workspace.PointerPressed += (_, e) =>
         {
@@ -150,7 +165,7 @@ internal sealed class MainWindow : Window
             Background = Palette.TabsBg,
             BorderBrush = Palette.Line,
             BorderThickness = new Thickness(0, 1, 0, 0),
-            Child = _status,
+            Child = BuildStatusBar(),
         };
 
         var root = new Grid { RowDefinitions = new RowDefinitions("Auto,*,Auto") };
@@ -225,16 +240,16 @@ internal sealed class MainWindow : Window
             _helpBtn);
 
         _liveBtn = Ribbon.Big(Glyph.View, "En direct", ToggleLive);
-        SetActive(_liveBtn, true, Palette.AccentLight);
+        SetState(_liveBtn, "on");
         var thumbs = Ribbon.Group("Miniatures",
             Ribbon.Big(Glyph.Refresh, "Actualisation", menu: Ribbon.Menu(
                 ("1 image / seconde", () => SetFps(1)),
                 ("2 images / seconde", () => SetFps(2)),
                 ("4 images / seconde", () => SetFps(4)))),
             Ribbon.Column(
-                Ribbon.Small(Glyph.ZoomIn, "Plus grand", () => SetTileSize(_settings.TileSize + 1)),
-                Ribbon.Small(Glyph.ZoomOut, "Plus petit", () => SetTileSize(_settings.TileSize - 1)),
-                Ribbon.Small(Glyph.Sort, "Trier par nom", SortTiles)),
+                Ribbon.Small(Glyph.ZoomIn, "Zoom avant", () => SetZoom(TileWidth * 1.15)),
+                Ribbon.Small(Glyph.ZoomOut, "Zoom arrière", () => SetZoom(TileWidth / 1.15)),
+                Ribbon.Small(Glyph.Fit, "Ajuster à la fenêtre", FitToWindow)),
             _liveBtn);
 
         AddTab("Classe", Ribbon.TabContent(room, lesson, student, web, communicate, thumbs));
@@ -295,48 +310,69 @@ internal sealed class MainWindow : Window
         // ---------------- Affichage ----------------
         AddTab("Affichage", Ribbon.TabContent(
             Ribbon.Group("Vignettes",
-                Ribbon.Big(Glyph.ZoomIn, "Plus grandes", () => SetTileSize(_settings.TileSize + 1)),
-                Ribbon.Big(Glyph.ZoomOut, "Plus petites", () => SetTileSize(_settings.TileSize - 1)),
+                Ribbon.Big(Glyph.ZoomIn, "Zoom avant", () => SetZoom(TileWidth * 1.15)),
+                Ribbon.Big(Glyph.ZoomOut, "Zoom arrière", () => SetZoom(TileWidth / 1.15)),
+                Ribbon.Big(Glyph.Fit, "Ajuster à la fenêtre", FitToWindow),
+                Ribbon.Big(Glyph.Refresh, "Taille normale", () => SetZoom(ZoomBase)),
                 Ribbon.Big(Glyph.Sort, "Trier par nom", SortTiles))));
     }
 
     private Control BuildSidebar()
     {
-        Button Item(string glyph, string tip, Action a)
+        // Bouton de la barre latérale : icône + indicateur vertical (vue active) ; info-bulle à droite.
+        Button Item(string glyph, string tip, Action a, int tab = -1)
         {
+            var bar = new Border
+            {
+                Width = 3, CornerRadius = new CornerRadius(2), Background = Palette.Accent,
+                HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(1, 9, 0, 9),
+            };
+            bar.Classes.Add("bar");
             var b = new Button
             {
-                Content = Glyph.Make(glyph, 20),
-                Background = Brushes.Transparent,
-                BorderThickness = new Thickness(0),
-                Width = 48,
-                Height = 44,
-                Margin = new Thickness(4, 2),
-                HorizontalContentAlignment = HorizontalAlignment.Center,
+                Content = new Grid { Width = 44, Height = 40, Children = { bar, Glyph.Make(glyph, 22) } },
+                Padding = new Thickness(0),
+                Margin = new Thickness(6, 2),
+                HorizontalContentAlignment = HorizontalAlignment.Stretch,
+                VerticalContentAlignment = VerticalAlignment.Stretch,
             };
+            b.Classes.Add("side");
             ToolTip.SetTip(b, tip);
             ToolTip.SetPlacement(b, PlacementMode.Right);
             b.Click += (_, _) => a();
+            if (tab >= 0) _sideTabs[tab] = b;
             return b;
         }
 
+        _sideAnnounce = Item(Glyph.Mic, "Annonce audio (micro)", () => Run(ToggleAnnounceAsync));
         var top = new StackPanel
         {
             Margin = new Thickness(0, 8),
+            Spacing = 2,
             Children =
             {
-                Item(Glyph.Home, "Classe", () => _tabs.SelectedIndex = 0),
+                Item(Glyph.Grid, "Classe — vignettes des postes", () => _tabs.SelectedIndex = 0, tab: 0),
+                Item(Glyph.People, "Groupes et équipes", () => _tabs.SelectedIndex = 1, tab: 1),
+                Item(Glyph.SelectAll, "Sélection", () => _tabs.SelectedIndex = 2, tab: 2),
+                Item(Glyph.Survey, "Retour & bien-être (sondages, étoiles)", () => _tabs.SelectedIndex = 3, tab: 3),
+                Item(Glyph.History, "Journal", () => _tabs.SelectedIndex = 4, tab: 4),
+                Item(Glyph.Admin, "Administrer", () => _tabs.SelectedIndex = 5, tab: 5),
+                new Border { Height = 1, Background = Palette.Line, Margin = new Thickness(12, 8) },
                 Item(Glyph.Projector, "Montrer mon écran", () => Run(ShowMyScreenAsync)),
-                Item(Glyph.Mic, "Annonce audio", () => Run(ToggleAnnounceAsync)),
-                Item(Glyph.Survey, "Sondage rapide", OpenSurvey),
-                Item(Glyph.Globe, "Accès web", () => Run(EditRestrictionsAsync)),
+                _sideAnnounce,
+                Item(Glyph.Globe, "Accès web et restrictions", () => Run(EditRestrictionsAsync)),
                 Item(Glyph.Launch, "Ouvrir un site sur les postes", () => Run(OpenWebsiteAsync)),
-                Item(Glyph.People, "Équipes", OpenGroups),
-                Item(Glyph.List, "Présence", OpenAttendance),
-                Item(Glyph.History, "Journal", () => new JournalWindow().Show(this)),
+                Item(Glyph.List, "Liste de présence", OpenAttendance),
             },
         };
-        var bottom = new StackPanel { VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(0, 8), Children = { Item(Glyph.Settings, "Paramètres", () => Run(OpenSettingsAsync)) } };
+        var bottom = new StackPanel
+        {
+            VerticalAlignment = VerticalAlignment.Bottom,
+            Margin = new Thickness(0, 8),
+            Children = { Item(Glyph.Settings, "Paramètres (écran de verrouillage, séance)", () => Run(OpenSettingsAsync)) },
+        };
+        _tabs.SelectionChanged += (_, _) => SyncSidebar();
+        SyncSidebar();
         return new Border
         {
             Background = Brushes.White,
@@ -344,6 +380,52 @@ internal sealed class MainWindow : Window
             BorderThickness = new Thickness(0, 0, 1, 0),
             Child = new Grid { Children = { top, bottom } },
         };
+    }
+
+    private void SyncSidebar()
+    {
+        foreach (var (tab, b) in _sideTabs) b.Classes.Set("on", tab == _tabs.SelectedIndex);
+    }
+
+    /// <summary>Barre d'état : messages à gauche, zoom des vignettes à droite (− curseur + % ajuster).</summary>
+    private Control BuildStatusBar()
+    {
+        Button ZoomBtn(string glyph, string tip, Action a)
+        {
+            var b = new Button { Content = Glyph.Make(glyph, 16), Padding = new Thickness(5), Width = 28, Height = 28 };
+            b.Classes.Add("zoom");
+            ToolTip.SetTip(b, tip);
+            b.Click += (_, _) => a();
+            return b;
+        }
+        _zoom.Value = TileWidth;
+        _zoom.PropertyChanged += (_, e) =>
+        {
+            if (e.Property == RangeBase.ValueProperty) SetZoom(_zoom.Value, fromSlider: true);
+        };
+        UpdateZoomText();
+        var zoomBar = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Spacing = 2,
+            Margin = new Thickness(0, 0, 10, 0),
+            Children =
+            {
+                ZoomBtn(Glyph.Minus, "Zoom arrière (Ctrl + molette)", () => SetZoom(TileWidth / 1.15)),
+                _zoom,
+                ZoomBtn(Glyph.Plus, "Zoom avant (Ctrl + molette)", () => SetZoom(TileWidth * 1.15)),
+                _zoomText,
+                new Border { Width = 1, Background = Palette.Line, Margin = new Thickness(8, 6) },
+                ZoomBtn(Glyph.Fit, "Ajuster : tous les postes visibles sans défiler", FitToWindow),
+                ZoomBtn(Glyph.Refresh, "Taille normale (100 %)", () => SetZoom(ZoomBase)),
+            },
+        };
+        var grid = new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto"), Height = 34 };
+        _status.VerticalAlignment = VerticalAlignment.Center;
+        grid.Children.Add(_status);
+        Grid.SetColumn(zoomBar, 1);
+        grid.Children.Add(zoomBar);
+        return grid;
     }
 
     private MenuFlyout QuickLaunchMenu(Func<IReadOnlyList<AgentConnection>> targets)
@@ -486,7 +568,8 @@ internal sealed class MainWindow : Window
 
         Button IconCmd(string glyph, string tip, Action a)
         {
-            var b = new Button { Content = Glyph.Make(glyph, 15), Background = Brushes.Transparent, BorderThickness = new Thickness(0), Padding = new Thickness(6, 4) };
+            var b = new Button { Content = Glyph.Make(glyph, 18), Padding = new Thickness(6) };
+            b.Classes.Add("zoom");
             ToolTip.SetTip(b, tip);
             b.Click += (_, _) => { flyout.Hide(); a(); };
             return b;
@@ -532,7 +615,7 @@ internal sealed class MainWindow : Window
                 }
 
                 var conn = new AgentConnection(r);
-                var tile = new StudentTile(conn, TileWidths[_settings.TileSize]) { LessonTitle = _lesson?.Title ?? "" };
+                var tile = new StudentTile(conn, TileWidth) { LessonTitle = _lesson?.Title ?? "" };
                 _tiles[key] = tile;
                 _grid.Children.Add(tile.Root);
                 WireTile(tile);
@@ -644,7 +727,7 @@ internal sealed class MainWindow : Window
         _emptyHint.IsVisible = _tiles.Count == 0;
         int hands = _tiles.Values.Count(t => t.Conn.IsHandRaised);
         SetBigLabel(_helpBtn, hands > 0 ? $"Demandes d'aide ({hands})" : "Demandes d'aide");
-        SetActive(_helpBtn, hands > 0, Palette.Hand);
+        SetState(_helpBtn, hands > 0 ? "warn" : null);
     }
 
     private void RefreshTiles(IEnumerable<AgentConnection> conns)
@@ -860,7 +943,8 @@ internal sealed class MainWindow : Window
         {
             int n = _announcer.TargetCount;
             await _announcer.StopAsync();
-            SetActive(_announceBtn, false, Palette.Danger);
+            SetState(_announceBtn, null);
+            SetState(_sideAnnounce, null);
             SetBigLabel(_announceBtn, "Annonce");
             ActionLog.Add("Fin d'annonce", $"{n} poste(s)");
             SetStatus("Annonce terminée.");
@@ -871,7 +955,8 @@ internal sealed class MainWindow : Window
         try
         {
             await _announcer.StartAsync(targets, _teacherName.Text?.Trim() ?? "Le professeur");
-            SetActive(_announceBtn, true, Palette.Danger);
+            SetState(_announceBtn, "live");
+            SetState(_sideAnnounce, "live");
             SetBigLabel(_announceBtn, "Arrêter l'annonce");
             Log("Annonce audio", targets);
             SetStatus($"🎙 Annonce en direct vers {targets.Count} poste(s) — recliquez pour arrêter.");
@@ -937,7 +1022,7 @@ internal sealed class MainWindow : Window
     private void SetBroadcastUi(bool live)
     {
         SetBigLabel(_showBtn, live ? "Diffusion en cours" : "Montrer");
-        SetActive(_showBtn, live, Palette.Danger);
+        SetState(_showBtn, live ? "live" : null);
     }
 
     // ---------- Accès web / restrictions ----------
@@ -963,7 +1048,7 @@ internal sealed class MainWindow : Window
         var targets = Targets();
         await ApplyAsync(targets, "Accès web : " + WebLabel(mode), c => c.SetRestrictions(_restrictions));
         SetBigLabel(_webBtn, WebLabel(mode));
-        SetActive(_webBtn, mode != WebMode.Unrestricted, Palette.Hand);
+        SetState(_webBtn, mode != WebMode.Unrestricted ? "warn" : null);
     }
 
     private async Task EditRestrictionsAsync()
@@ -981,7 +1066,7 @@ internal sealed class MainWindow : Window
         await ApplyAsync(targets, r.Enabled ? "Restrictions appliquées" : "Restrictions levées", c => c.SetRestrictions(r),
             r.Enabled ? $"apps : {string.Join(", ", r.BlockedApps)} | web : {WebLabel(r.Web)}" : "");
         SetBigLabel(_webBtn, WebLabel(r.Web));
-        SetActive(_webBtn, r.Web != WebMode.Unrestricted, Palette.Hand);
+        SetState(_webBtn, r.Web != WebMode.Unrestricted ? "warn" : null);
     }
 
     private async Task OpenWebsiteAsync()
@@ -1014,7 +1099,7 @@ internal sealed class MainWindow : Window
             ActionLog.Add("Fin de séance", _lesson.Title, $"{Attendance.Rows.Count(r => r.StudentName.Length > 0)} élève(s) identifié(s)");
             _lesson = null;
             SetBigLabel(_lessonBtn, "Démarrer la séance");
-            SetActive(_lessonBtn, false, Palette.Ok);
+            SetState(_lessonBtn, null);
             foreach (var t in _tiles.Values) { t.LessonTitle = ""; t.Refresh(); }
             SetStatus("Séance terminée.");
             return;
@@ -1042,7 +1127,7 @@ internal sealed class MainWindow : Window
         }
         foreach (var c in targets) { try { await c.StartLesson(_lesson); } catch { } }
         SetBigLabel(_lessonBtn, "Terminer la séance");
-        SetActive(_lessonBtn, true, Palette.Ok);
+        SetState(_lessonBtn, "ok");
         ActionLog.Add("Début de séance", ActionLog.Describe(targets, true), _lesson.Title);
         SetStatus($"🎓 Séance « {_lesson.Title} » démarrée : les élèves s'identifient…");
     }
@@ -1104,7 +1189,7 @@ internal sealed class MainWindow : Window
     private void ToggleLive()
     {
         _thumbsLive = !_thumbsLive;
-        SetActive(_liveBtn, _thumbsLive, Palette.AccentLight);
+        SetState(_liveBtn, _thumbsLive ? "on" : null);
         Run(ApplyThumbProfileAsync);
         SetStatus(_thumbsLive ? "Miniatures en direct activées." : "Miniatures en pause (réseau soulagé).");
     }
@@ -1117,13 +1202,52 @@ internal sealed class MainWindow : Window
         SetStatus($"Miniatures : {fps} image(s) par seconde.");
     }
 
-    private void SetTileSize(int size)
+    private bool _settingZoom;
+
+    /// <summary>Change la taille des vignettes ; la résolution des flux suit après une courte pause.</summary>
+    private void SetZoom(double width, bool fromSlider = false)
     {
-        size = Math.Clamp(size, 0, TileWidths.Length - 1);
-        _settings.TileSize = size;
-        _settings.Save();
-        foreach (var t in _tiles.Values) t.SetWidth(TileWidths[size]);
-        Run(ApplyThumbProfileAsync);
+        if (_settingZoom) return;
+        width = Math.Round(Math.Clamp(width, ZoomMin, ZoomMax));
+        if (Math.Abs(width - _settings.TileWidth) < 0.5 && !fromSlider) return;
+        _settingZoom = true;
+        try
+        {
+            _settings.TileWidth = width;
+            if (!fromSlider) _zoom.Value = width;
+            foreach (var t in _tiles.Values) t.SetWidth(width);
+            UpdateZoomText();
+        }
+        finally { _settingZoom = false; }
+
+        // Évite de renégocier les flux à chaque cran du curseur.
+        _zoomSettle ??= new DispatcherTimer(TimeSpan.FromMilliseconds(450), DispatcherPriority.Background, (_, _) =>
+        {
+            _zoomSettle!.Stop();
+            _settings.Save();
+            Run(ApplyThumbProfileAsync);
+        });
+        _zoomSettle.Stop();
+        _zoomSettle.Start();
+    }
+
+    private void UpdateZoomText() => _zoomText.Text = $"{Math.Round(TileWidth / ZoomBase * 100)} %";
+
+    /// <summary>Plus grande taille de vignette permettant d'afficher tous les postes sans défiler.</summary>
+    private void FitToWindow()
+    {
+        int n = _tiles.Count;
+        if (n == 0) return;
+        double w = _scroller.Bounds.Width - 30, h = _scroller.Bounds.Height - 30;
+        for (double tw = ZoomMax; tw >= ZoomMin; tw -= 5)
+        {
+            double cellW = tw + 32;                  // marges + remplissage de la vignette
+            double cellH = Math.Round(tw * 0.6) + 22 + 24 + 32 + 4; // bandeau, pied, marges, bordure
+            int cols = Math.Max(1, (int)(w / cellW));
+            int rows = (int)Math.Ceiling(n / (double)cols);
+            if (rows * cellH <= h) { SetZoom(tw); return; }
+        }
+        SetZoom(ZoomMin);
     }
 
     private async Task ApplyThumbProfileAsync()
@@ -1154,13 +1278,11 @@ internal sealed class MainWindow : Window
             tb.Text = label + (b.Flyout != null ? " ▾" : "");
     }
 
-    private static void SetActive(Button b, bool active, IBrush color)
+    /// <summary>État visuel d'un bouton : null (normal), "on" (enclenché), "live" (en cours),
+    /// "warn" (alerte) ou "ok" (séance) — les couleurs sont définies dans ConsoleStyles.axaml.</summary>
+    private static void SetState(Button b, string? state)
     {
-        b.Background = active ? color : Brushes.Transparent;
-        bool dark = active && color != Palette.AccentLight;
-        if (b.Content is StackPanel sp)
-            foreach (var tb in sp.Children.OfType<TextBlock>())
-                tb.Foreground = dark ? Brushes.White : Palette.IconFg;
+        foreach (var c in new[] { "on", "live", "warn", "ok" }) b.Classes.Set(c, c == state);
     }
 
     private void SetStatus(string text) => Dispatcher.UIThread.Post(() => _status.Text = text);

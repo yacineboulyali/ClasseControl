@@ -65,6 +65,9 @@ switch / même sous-réseau).
     • Clic droit = palette d'actions pour ce poste (ou la sélection).
     • Les boutons du ruban agissent sur la sélection, sinon sur toute
       la classe.
+    • ZOOM (en bas à droite) : − / curseur / + pour agrandir ou réduire
+      les écrans des élèves, « Ajuster » pour tout voir sans défiler,
+      ou Ctrl + molette de la souris.
   Onglet Classe : Écran noir, Montrer (mon écran / présenter un élève),
     Lancement rapide (favoris), Bureau élève (réduire / fermer les
     fenêtres), Accès web (sans restriction / sites interdits / sites

@@ -22,7 +22,8 @@ internal sealed class ConsoleSettings
     /// <summary>Image de l'écran de verrouillage, déjà recompressée en JPEG (vide = aucune).</summary>
     public string LockImageFile { get; set; } = "";
     public int TeamSize { get; set; } = 3;
-    public int TileSize { get; set; } = 1;          // 0 petit, 1 moyen, 2 grand
+    /// <summary>Largeur des vignettes en pixels (zoom de la console, 100 % = 290).</summary>
+    public double TileWidth { get; set; } = 290;
     public int ThumbFps { get; set; } = 2;
     public List<QuickItem> QuickLaunch { get; set; } = new()
     {

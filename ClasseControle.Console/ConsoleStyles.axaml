@@ -1,0 +1,111 @@
+<!--
+  Styles interactifs de la console : survol, appui, états actifs, transitions.
+  Les icônes (Path.icon / Path.iconfill) prennent leur couleur ici, ce qui permet
+  de les colorer au survol et selon l'état du bouton, en flat design monochrome.
+-->
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+  <!-- Icônes : gris anthracite par défaut -->
+  <Style Selector="Path.icon">
+    <Setter Property="Stroke" Value="#2D333B"/>
+  </Style>
+  <Style Selector="Path.iconfill">
+    <Setter Property="Fill" Value="#2D333B"/>
+  </Style>
+  <Style Selector="TextBlock.rlabel">
+    <Setter Property="Foreground" Value="#2D333B"/>
+  </Style>
+
+  <!-- ===== Boutons du ruban, de la barre latérale et de la barre de zoom ===== -->
+  <Style Selector="Button.ribbon, Button.side, Button.zoom">
+    <Setter Property="Background" Value="Transparent"/>
+    <Setter Property="BorderThickness" Value="0"/>
+    <Setter Property="CornerRadius" Value="6"/>
+    <Setter Property="Cursor" Value="Hand"/>
+  </Style>
+  <Style Selector="Button.ribbon /template/ ContentPresenter#PART_ContentPresenter, Button.side /template/ ContentPresenter#PART_ContentPresenter, Button.zoom /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Transitions">
+      <Transitions>
+        <BrushTransition Property="Background" Duration="0:0:0.15"/>
+      </Transitions>
+    </Setter>
+  </Style>
+
+  <!-- Survol : fond bleu très clair, icône et libellé en bleu -->
+  <Style Selector="Button.ribbon:pointerover /template/ ContentPresenter#PART_ContentPresenter, Button.side:pointerover /template/ ContentPresenter#PART_ContentPresenter, Button.zoom:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="#E6EFFA"/>
+  </Style>
+  <Style Selector="Button.ribbon:pressed /template/ ContentPresenter#PART_ContentPresenter, Button.side:pressed /template/ ContentPresenter#PART_ContentPresenter, Button.zoom:pressed /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="#CFE0F5"/>
+  </Style>
+  <Style Selector="Button.ribbon:pointerover Path.icon, Button.side:pointerover Path.icon, Button.zoom:pointerover Path.icon">
+    <Setter Property="Stroke" Value="#1F4E8C"/>
+  </Style>
+  <Style Selector="Button.ribbon:pointerover Path.iconfill, Button.side:pointerover Path.iconfill, Button.zoom:pointerover Path.iconfill">
+    <Setter Property="Fill" Value="#1F4E8C"/>
+  </Style>
+  <Style Selector="Button.ribbon:pointerover TextBlock.rlabel">
+    <Setter Property="Foreground" Value="#1F4E8C"/>
+  </Style>
+  <Style Selector="Button.ribbon:disabled Path.icon">
+    <Setter Property="Stroke" Value="#A8B0B8"/>
+  </Style>
+
+  <!-- État actif (option enclenchée) : fond bleu clair, tout en bleu -->
+  <Style Selector="Button.on /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="#DCE9F8"/>
+  </Style>
+  <Style Selector="Button.on Path.icon"><Setter Property="Stroke" Value="#1F4E8C"/></Style>
+  <Style Selector="Button.on Path.iconfill"><Setter Property="Fill" Value="#1F4E8C"/></Style>
+  <Style Selector="Button.on TextBlock.rlabel"><Setter Property="Foreground" Value="#1F4E8C"/></Style>
+
+  <!-- États forts : diffusion/annonce en cours (rouge), alerte (orange), séance (vert) -->
+  <Style Selector="Button.live /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="#C62828"/>
+  </Style>
+  <Style Selector="Button.live:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="#A91F1F"/>
+  </Style>
+  <Style Selector="Button.warn /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="#E08A12"/>
+  </Style>
+  <Style Selector="Button.warn:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="#C47710"/>
+  </Style>
+  <Style Selector="Button.ok /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="#1A7F37"/>
+  </Style>
+  <Style Selector="Button.ok:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="#156B2E"/>
+  </Style>
+  <Style Selector="Button.live Path.icon, Button.warn Path.icon, Button.ok Path.icon">
+    <Setter Property="Stroke" Value="White"/>
+  </Style>
+  <Style Selector="Button.live Path.iconfill, Button.warn Path.iconfill, Button.ok Path.iconfill">
+    <Setter Property="Fill" Value="White"/>
+  </Style>
+  <Style Selector="Button.live TextBlock.rlabel, Button.warn TextBlock.rlabel, Button.ok TextBlock.rlabel">
+    <Setter Property="Foreground" Value="White"/>
+  </Style>
+
+  <!-- Barre latérale : indicateur vertical à gauche pour la vue active -->
+  <Style Selector="Button.side Border.bar">
+    <Setter Property="IsVisible" Value="False"/>
+  </Style>
+  <Style Selector="Button.side.on Border.bar">
+    <Setter Property="IsVisible" Value="True"/>
+  </Style>
+
+  <!-- Onglets du ruban -->
+  <Style Selector="TabItem">
+    <Setter Property="Cursor" Value="Hand"/>
+  </Style>
+  <Style Selector="TabItem:pointerover > TextBlock">
+    <Setter Property="Foreground" Value="#1F4E8C"/>
+  </Style>
+  <Style Selector="TabItem:selected > TextBlock">
+    <Setter Property="Foreground" Value="#1F4E8C"/>
+    <Setter Property="FontWeight" Value="SemiBold"/>
+  </Style>
+</Styles>
