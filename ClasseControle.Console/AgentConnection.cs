@@ -19,6 +19,9 @@ internal sealed class AgentConnection : IDisposable
     public bool IsLocked { get; set; }
     public bool Selected { get; set; }
     public bool IsHandRaised { get; private set; }
+    public bool IsBlanked { get; set; }
+    /// <summary>Étoiles (récompenses) obtenues pendant la séance.</summary>
+    public int Stars { get; set; }
     /// <summary>Nom saisi par l'élève en début de séance (vide s'il ne s'est pas identifié).</summary>
     public string StudentName { get; set; } = "";
     /// <summary>Nom à afficher : celui de l'élève s'il s'est identifié, sinon l'utilisateur Windows.</summary>
@@ -36,6 +39,8 @@ internal sealed class AgentConnection : IDisposable
     public event Action<AgentConnection, StudentLoginPayload>? StudentLogin;
     public event Action<AgentConnection, GroupDocPayload>? GroupDocReceived;
     public event Action<AgentConnection, GroupChatPayload>? GroupChatReceived;
+    public event Action<AgentConnection, ChatPayload>? ChatReceived;
+    public event Action<AgentConnection, SurveyAnswerPayload>? SurveyAnswered;
 
     public AgentConnection(DiscoveryReply info) => Info = info;
 
@@ -100,6 +105,16 @@ internal sealed class AgentConnection : IDisposable
                     var c = Wire.Read<GroupChatPayload>(env);
                     if (c != null) GroupChatReceived?.Invoke(this, c);
                 }
+                else if (env.Type == MessageType.Chat)
+                {
+                    var m = Wire.Read<ChatPayload>(env);
+                    if (m != null) ChatReceived?.Invoke(this, m);
+                }
+                else if (env.Type == MessageType.SurveyAnswer)
+                {
+                    var a = Wire.Read<SurveyAnswerPayload>(env);
+                    if (a != null) SurveyAnswered?.Invoke(this, a);
+                }
                 else if (env.Type == MessageType.HandRaise)
                 {
                     var h = Wire.Read<HandRaisePayload>(env);
@@ -122,6 +137,19 @@ internal sealed class AgentConnection : IDisposable
 
     public Task Lock(string message, byte[]? image = null) =>
         Send(MessageType.Lock, new LockPayload { Message = message, ImageJpeg = image });
+    public Task Blank() => Send(MessageType.Lock, new LockPayload { Blank = true, Message = "" });
+    public Task Chat(ChatPayload p) => Send(MessageType.Chat, p);
+    public Task StartAudio(AudioStartPayload p) => Send(MessageType.AudioStart, p);
+    public Task SendAudio(byte[] pcm) => Send(MessageType.AudioChunk, new AudioChunkPayload { Pcm = pcm });
+    public Task StopAudio() => Send(MessageType.AudioStop, new { });
+    public Task Reward(int delta)
+    {
+        Stars = delta == 0 ? 0 : Math.Max(0, Stars + delta);
+        return Send(MessageType.Reward, new RewardPayload { Stars = Stars, Delta = delta });
+    }
+    public Task Desktop(DesktopAction a) => Send(MessageType.StudentDesktop, new StudentDesktopPayload { Action = a });
+    public Task StartSurvey(SurveyPayload p) => Send(MessageType.Survey, p);
+    public Task CloseSurvey(string id) => Send(MessageType.SurveyClose, new SurveyClosePayload { Id = id });
     public Task StartLesson(SessionStartPayload p) => Send(MessageType.SessionStart, p);
     public Task EndLesson() => Send(MessageType.SessionEnd, new { });
     public Task AckLogin(bool ok, string message) =>
@@ -201,7 +229,7 @@ internal sealed class AgentConnection : IDisposable
         });
     }
 
-    private async Task Send<T>(MessageType type, T payload)
+    public async Task Send<T>(MessageType type, T payload)
     {
         if (_stream == null || !IsConnected) return;
         await _writeLock.WaitAsync();

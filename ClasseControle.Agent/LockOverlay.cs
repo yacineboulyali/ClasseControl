@@ -18,11 +18,12 @@ internal sealed class LockOverlay : Window
     private readonly TextBlock _message;
     private readonly Image _background;
     private readonly Border _shade;
+    private readonly StackPanel _center;
     private Bitmap? _bitmap;
 
     public Func<bool>? YieldTo { get; set; }
 
-    public LockOverlay(string message, byte[]? image)
+    public LockOverlay(string message, byte[]? image, bool blank = false)
     {
         SystemDecorations = SystemDecorations.None;
         WindowState = WindowState.FullScreen;
@@ -62,7 +63,7 @@ internal sealed class LockOverlay : Window
             Margin = new Thickness(0, 0, 0, 24),
         };
 
-        var center = new StackPanel
+        var center = _center = new StackPanel
         {
             HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment = VerticalAlignment.Center,
@@ -70,7 +71,7 @@ internal sealed class LockOverlay : Window
         };
         Content = new Grid { Children = { _background, _shade, center } };
 
-        Update(message, image);
+        Update(message, image, blank);
 
         // Avaler les entrées : on marque les événements comme traités.
         KeyDown += (_, e) => e.Handled = true;
@@ -81,8 +82,12 @@ internal sealed class LockOverlay : Window
         Closed += (_, _) => _bitmap?.Dispose();
     }
 
-    public void Update(string message, byte[]? image)
+    public void Update(string message, byte[]? image, bool blank = false)
     {
+        // Écran noir : rien d'autre qu'un fond noir.
+        Background = blank ? Brushes.Black : new SolidColorBrush(Color.FromRgb(13, 17, 23));
+        _center.IsVisible = !blank;
+        if (blank) image = null;
         _message.Text = message;
         if (image is { Length: > 0 })
         {

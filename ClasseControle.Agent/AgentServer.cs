@@ -10,7 +10,7 @@ namespace ClasseControle.Agent;
 /// <summary>Actions UI que le serveur demande à l'application agent (thread UI).</summary>
 internal interface IAgentHost
 {
-    void ShowLock(string message, byte[]? image);
+    void ShowLock(string message, byte[]? image, bool blank);
     void HideLock();
     void ShowMessage(string title, string text, int durationSeconds);
     void SetStatus(string status);
@@ -31,6 +31,13 @@ internal interface IAgentHost
     void TeamChat(GroupChatPayload message);
     void CloseTeam(string groupId);
     void TeamDisconnected();
+
+    // --- Communication / retour ---
+    void ChatReceived(ChatPayload message);
+    void AnnouncementChanged(bool live, string speaker);
+    void RewardChanged(RewardPayload reward);
+    void ShowSurvey(SurveyPayload survey);
+    void CloseSurvey(string surveyId);
 }
 
 /// <summary>
@@ -62,6 +69,10 @@ internal sealed class AgentServer
 
     // Groupe de travail (espace d'équipe).
     private Session? _groupOwner;
+
+    private readonly AudioPlayer _audio = new();
+    private Session? _surveyOwner;
+    private Session? _audioOwner;
 
     /// <summary>Nom saisi par l'élève pour la séance (vide si non identifié).</summary>
     public string StudentName => _studentName;
@@ -103,6 +114,17 @@ internal sealed class AgentServer
         _ = SendTo(owner, MessageType.StudentLogin, new StudentLoginPayload { SessionId = lesson.SessionId, FullName = fullName });
     }
 
+    /// <summary>L'élève écrit au professeur (toutes les consoles connectées le reçoivent).</summary>
+    public void SendChat(string text) => _ = PushToAll(MessageType.Chat, new ChatPayload
+    {
+        Author = _studentName.Length > 0 ? _studentName : Environment.UserName,
+        Text = text,
+        Time = DateTime.UtcNow,
+    });
+
+    public void SendSurveyAnswer(string id, int choice) =>
+        _ = SendTo(_surveyOwner, MessageType.SurveyAnswer, new SurveyAnswerPayload { Id = id, Choice = choice });
+
     public void SendGroupDoc(GroupDocPayload doc) => _ = SendTo(_groupOwner, MessageType.GroupDoc, doc);
 
     public void SendGroupChat(string groupId, string text) =>
@@ -128,6 +150,7 @@ internal sealed class AgentServer
     {
         _cts.Cancel();
         _restrictions.Dispose();
+        _audio.Dispose();
     }
 
     // ---------- Découverte UDP ----------
@@ -240,7 +263,7 @@ internal sealed class AgentServer
                 {
                     case MessageType.Lock:
                         var lk = Wire.Read<LockPayload>(env) ?? new LockPayload();
-                        _host.ShowLock(lk.Message, lk.ImageJpeg);
+                        _host.ShowLock(lk.Message, lk.ImageJpeg, lk.Blank);
                         break;
 
                     case MessageType.Unlock:
@@ -372,6 +395,48 @@ internal sealed class AgentServer
                         _host.CloseTeam(gcl.GroupId);
                         break;
 
+                    case MessageType.Chat:
+                        var ch = Wire.Read<ChatPayload>(env);
+                        if (ch != null) _host.ChatReceived(ch);
+                        break;
+
+                    case MessageType.AudioStart:
+                        var au = Wire.Read<AudioStartPayload>(env) ?? new AudioStartPayload();
+                        _audioOwner = session;
+                        try { _audio.Start(au.SampleRate, au.Channels); _host.AnnouncementChanged(true, au.Speaker); } catch { }
+                        break;
+
+                    case MessageType.AudioChunk:
+                        var ac = Wire.Read<AudioChunkPayload>(env);
+                        if (ac != null && session == _audioOwner) _audio.Feed(ac.Pcm);
+                        break;
+
+                    case MessageType.AudioStop:
+                        if (session == _audioOwner) { _audio.Stop(); _audioOwner = null; _host.AnnouncementChanged(false, ""); }
+                        break;
+
+                    case MessageType.Reward:
+                        var rw = Wire.Read<RewardPayload>(env);
+                        if (rw != null) _host.RewardChanged(rw);
+                        break;
+
+                    case MessageType.StudentDesktop:
+                        var sd = Wire.Read<StudentDesktopPayload>(env);
+                        if (sd != null) DesktopAction(sd.Action);
+                        break;
+
+                    case MessageType.Survey:
+                        var sv = Wire.Read<SurveyPayload>(env);
+                        if (sv == null) break;
+                        _surveyOwner = session;
+                        _host.ShowSurvey(sv);
+                        break;
+
+                    case MessageType.SurveyClose:
+                        var sc = Wire.Read<SurveyClosePayload>(env) ?? new SurveyClosePayload();
+                        _host.CloseSurvey(sc.Id);
+                        break;
+
                     case MessageType.SetRestrictions:
                         var rp = Wire.Read<RestrictionsPayload>(env);
                         if (rp != null) _restrictions.Apply(rp);
@@ -387,6 +452,12 @@ internal sealed class AgentServer
             if (session != null) lock (_sessions) _sessions.Remove(session);
             // Si le professeur se déconnecte pendant une diffusion, on rend la main à l'élève.
             if (broadcasting) _host.HideBroadcast();
+            if (session != null && session == _audioOwner)
+            {
+                _audio.Stop();
+                _audioOwner = null;
+                _host.AnnouncementChanged(false, "");
+            }
             if (session != null && session == _groupOwner)
             {
                 _groupOwner = null;
@@ -488,6 +559,38 @@ internal sealed class AgentServer
             {
                 UseShellExecute = false,
                 CreateNoWindow = true,
+            });
+        }
+        catch { }
+    }
+
+    // Processus jamais fermés par « Fermer toutes les applications ».
+    private static readonly HashSet<string> KeepAlive = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "explorer", "ClasseControle.Agent", "ShellExperienceHost", "StartMenuExperienceHost", "SearchHost",
+        "SearchApp", "TextInputHost", "ApplicationFrameHost", "SystemSettings", "LockApp", "dwm", "ctfmon",
+    };
+
+    private static void DesktopAction(DesktopAction action)
+    {
+        try
+        {
+            if (action == ClasseControle.Common.DesktopAction.MinimizeAll)
+            {
+                const ushort VK_LWIN = 0x5B, VK_M = 0x4D;
+                InputInjector.Chord(VK_LWIN, VK_M);
+                return;
+            }
+            // Fermer toutes les applications fenêtrées de la session de l'élève :
+            // fermeture « polie » (comme le bouton ✕), puis forcée après 5 s.
+            int session = System.Diagnostics.Process.GetCurrentProcess().SessionId;
+            var targets = System.Diagnostics.Process.GetProcesses()
+                .Where(p => { try { return p.SessionId == session && p.MainWindowHandle != IntPtr.Zero && !KeepAlive.Contains(p.ProcessName); } catch { return false; } })
+                .ToList();
+            foreach (var p in targets) { try { p.CloseMainWindow(); } catch { } }
+            _ = Task.Delay(5000).ContinueWith(_ =>
+            {
+                foreach (var p in targets) { try { if (!p.HasExited) p.Kill(); } catch { } finally { p.Dispose(); } }
             });
         }
         catch { }

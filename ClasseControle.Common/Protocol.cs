@@ -23,7 +23,7 @@ public static class Net
 
 public static class AgentInfo
 {
-    public const string Version = "1.3.0";
+    public const string Version = "1.4.0";
 }
 
 /// <summary>Types de messages échangés sur le canal de contrôle TCP.</summary>
@@ -47,6 +47,13 @@ public enum MessageType
     BroadcastFrame = 61,  // une image de l'écran du professeur (JPEG)
     BroadcastStop = 62,   // fin de diffusion
     LowerHand = 65,       // le professeur baisse la main levée de l'élève
+    AudioStart = 66,      // début d'annonce audio (micro du professeur)
+    AudioChunk = 67,      // morceau de son PCM
+    AudioStop = 68,       // fin d'annonce
+    Reward = 71,          // récompense (étoiles) donnée / retirée à l'élève
+    StudentDesktop = 72,  // action sur le bureau élève (réduire / fermer les fenêtres)
+    Survey = 75,          // sondage rapide envoyé aux élèves
+    SurveyClose = 76,     // fin du sondage
     SetRestrictions = 70, // liste d'applications / sites interdits
     SessionStart = 80,    // début de séance : l'élève doit s'identifier
     SessionEnd = 81,      // fin de séance
@@ -59,6 +66,8 @@ public enum MessageType
     // --- Élève -> Prof (suite) ---
     HandRaise = 110,      // l'élève lève / baisse la main
     StudentLogin = 112,   // l'élève s'identifie (nom complet) pour la séance
+    Chat = 120,           // discussion professeur ↔ élève (dans les deux sens)
+    SurveyAnswer = 121,   // réponse de l'élève à un sondage
 
     // --- Élève -> Prof ---
     HelloAck = 1,         // réponse à Hello (accepté/refusé)
@@ -120,6 +129,8 @@ public sealed class LockPayload
     public string Message { get; set; } = "Écran verrouillé par le professeur";
     /// <summary>Image de fond facultative (JPEG), choisie par le professeur.</summary>
     public byte[]? ImageJpeg { get; set; }
+    /// <summary>Écran noir : écran entièrement noir, sans message (attention de la classe).</summary>
+    public bool Blank { get; set; }
 }
 
 public sealed class StartScreenPayload
@@ -195,11 +206,21 @@ public sealed class BroadcastStartPayload
 /// de processus (sans .exe) ; les sites sont des mots-clés recherchés dans le
 /// titre de l'onglet actif du navigateur (ex : "youtube", "facebook").
 /// </summary>
+public enum WebMode
+{
+    Unrestricted = 0, // pas de restriction web
+    BlockList = 1,    // sites interdits (liste noire)
+    AllowList = 2,    // seulement les sites approuvés (liste blanche)
+    BlockAll = 3,     // aucun navigateur
+}
+
 public sealed class RestrictionsPayload
 {
     public bool Enabled { get; set; }
     public List<string> BlockedApps { get; set; } = new();
     public List<string> BlockedSites { get; set; } = new();
+    public WebMode Web { get; set; } = WebMode.BlockList;
+    public List<string> AllowedSites { get; set; } = new();
 }
 
 public sealed class HandRaisePayload
@@ -266,4 +287,57 @@ public sealed class GroupChatPayload
 public sealed class GroupClosePayload
 {
     public string GroupId { get; set; } = "";
+}
+
+public sealed class ChatPayload
+{
+    public string Author { get; set; } = "";
+    public string Text { get; set; } = "";
+    public DateTime Time { get; set; }
+}
+
+public sealed class AudioStartPayload
+{
+    public int SampleRate { get; set; } = 16000;
+    public int Channels { get; set; } = 1;
+    public string Speaker { get; set; } = "";
+}
+
+public sealed class AudioChunkPayload
+{
+    /// <summary>Échantillons PCM 16 bits little-endian.</summary>
+    public byte[] Pcm { get; set; } = Array.Empty<byte>();
+}
+
+public sealed class RewardPayload
+{
+    /// <summary>Total d'étoiles de l'élève après l'opération.</summary>
+    public int Stars { get; set; }
+    /// <summary>+1 étoile donnée, -1 retirée, 0 remise à zéro.</summary>
+    public int Delta { get; set; }
+}
+
+public enum DesktopAction { MinimizeAll = 0, CloseAllApps = 1 }
+
+public sealed class StudentDesktopPayload
+{
+    public DesktopAction Action { get; set; }
+}
+
+public sealed class SurveyPayload
+{
+    public string Id { get; set; } = "";
+    public string Question { get; set; } = "";
+    public List<string> Options { get; set; } = new();
+}
+
+public sealed class SurveyAnswerPayload
+{
+    public string Id { get; set; } = "";
+    public int Choice { get; set; }
+}
+
+public sealed class SurveyClosePayload
+{
+    public string Id { get; set; } = "";
 }

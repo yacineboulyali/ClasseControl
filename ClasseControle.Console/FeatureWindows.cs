@@ -12,9 +12,9 @@ namespace ClasseControle.Console;
 
 internal static class Ui
 {
-    public static readonly IBrush Muted = new SolidColorBrush(Color.FromRgb(139, 148, 158));
-    public static readonly IBrush Panel = new SolidColorBrush(Color.FromRgb(22, 27, 34));
-    public static readonly IBrush Line = new SolidColorBrush(Color.FromRgb(48, 54, 61));
+    public static readonly IBrush Muted = Palette.Muted;
+    public static readonly IBrush Panel = new SolidColorBrush(Color.FromRgb(246, 248, 250));
+    public static readonly IBrush Line = Palette.Line;
 
     public static Button Btn(string text, Action onClick)
     {
@@ -99,11 +99,12 @@ internal sealed class RestrictionsDialog : Window
     public RestrictionsDialog(RestrictionsPayload current, int targetCount)
     {
         Title = "Restrictions — applications et sites";
-        Width = 620;
+        Width = 860;
         SizeToContent = SizeToContent.Height;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
         CanResize = false;
 
+        var allowed = MultiLine(current.AllowedSites, "un mot-clé par ligne, ex :\nwikipedia\nmoodle\nofppt");
         var apps = MultiLine(current.BlockedApps, "un nom de processus par ligne, ex :\nchrome\ndiscord");
         var sites = MultiLine(current.BlockedSites, "un mot-clé par ligne, ex :\nyoutube\nfacebook");
 
@@ -112,7 +113,7 @@ internal sealed class RestrictionsDialog : Window
         var addGames = new Button { Content = "+ Jeux / messageries", Padding = new Thickness(8, 3, 8, 3), FontSize = 12 };
         addGames.Click += (_, _) => Append(apps, GamePreset);
 
-        var cols = new Grid { ColumnDefinitions = new ColumnDefinitions("*,16,*") };
+        var cols = new Grid { ColumnDefinitions = new ColumnDefinitions("*,16,*,16,*") };
         var left = new StackPanel
         {
             Children =
@@ -134,12 +135,25 @@ internal sealed class RestrictionsDialog : Window
         Grid.SetColumn(right, 2);
         cols.Children.Add(left);
         cols.Children.Add(right);
+        var third = new StackPanel
+        {
+            Children =
+            {
+                new TextBlock { Text = "Sites approuvés", FontWeight = FontWeight.SemiBold },
+                Ui.Hint("Utilisés en mode « Sites approuvés uniquement » (ruban › Accès web)."),
+                new Border { Height = 6 }, allowed,
+            },
+        };
+        Grid.SetColumn(third, 4);
+        cols.Children.Add(third);
 
         RestrictionsPayload Build(bool enabled) => new()
         {
             Enabled = enabled,
             BlockedApps = Lines(apps),
             BlockedSites = Lines(sites),
+            AllowedSites = Lines(allowed),
+            Web = current.Web,
         };
 
         Content = new StackPanel
@@ -302,7 +316,7 @@ internal sealed class AttendanceWindow : Window
         {
             Text = text,
             FontWeight = bold ? FontWeight.SemiBold : FontWeight.Normal,
-            Foreground = bold ? Ui.Muted : Brushes.White,
+            Foreground = bold ? Ui.Muted : Palette.IconFg,
             Margin = new Thickness(0, 5, 8, 5),
             TextTrimming = TextTrimming.CharacterEllipsis,
         };

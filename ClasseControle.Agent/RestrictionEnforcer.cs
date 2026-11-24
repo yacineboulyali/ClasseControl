@@ -54,8 +54,16 @@ internal sealed class RestrictionEnforcer : IDisposable
             Enabled = p.Enabled,
             BlockedApps = Normalize(p.BlockedApps, stripExe: true).Where(a => !Protected.Contains(a)).ToList(),
             BlockedSites = Normalize(p.BlockedSites, stripExe: false),
+            AllowedSites = Normalize(p.AllowedSites, stripExe: false),
+            Web = p.Web,
         };
-        bool active = clean.Enabled && (clean.BlockedApps.Count > 0 || clean.BlockedSites.Count > 0);
+        bool webActive = clean.Web switch
+        {
+            WebMode.BlockList => clean.BlockedSites.Count > 0,
+            WebMode.AllowList or WebMode.BlockAll => true,
+            _ => false,
+        };
+        bool active = clean.Enabled && (clean.BlockedApps.Count > 0 || webActive);
         lock (_lock) _current = clean;
         _timer.Change(active ? 0 : Timeout.Infinite, 1000);
 
@@ -63,7 +71,13 @@ internal sealed class RestrictionEnforcer : IDisposable
             _host.ShowMessage("Restrictions actives",
                 "Le professeur a restreint l'utilisation de ce poste." +
                 (clean.BlockedApps.Count > 0 ? "\n\nApplications interdites : " + string.Join(", ", clean.BlockedApps) : "") +
-                (clean.BlockedSites.Count > 0 ? "\nSites interdits : " + string.Join(", ", clean.BlockedSites) : ""),
+                clean.Web switch
+                {
+                    WebMode.BlockList when clean.BlockedSites.Count > 0 => "\nSites interdits : " + string.Join(", ", clean.BlockedSites),
+                    WebMode.AllowList => "\nSeuls ces sites sont autorisés : " + (clean.AllowedSites.Count > 0 ? string.Join(", ", clean.AllowedSites) : "aucun"),
+                    WebMode.BlockAll => "\nLes navigateurs internet sont interdits.",
+                    _ => "",
+                },
                 8);
     }
 
@@ -81,10 +95,19 @@ internal sealed class RestrictionEnforcer : IDisposable
         lock (_lock) r = _current;
         if (!r.Enabled) return;
         try { EnforceApps(r.BlockedApps); } catch { }
-        try { EnforceSites(r.BlockedSites); } catch { }
+        try
+        {
+            switch (r.Web)
+            {
+                case WebMode.BlockList: EnforceSites(r.BlockedSites); break;
+                case WebMode.AllowList: EnforceAllowList(r.AllowedSites); break;
+                case WebMode.BlockAll: EnforceApps(Browsers.ToList(), "Navigateur interdit"); break;
+            }
+        }
+        catch { }
     }
 
-    private void EnforceApps(List<string> apps)
+    private void EnforceApps(List<string> apps, string title = "Application interdite")
     {
         var killed = new List<string>();
         foreach (var name in apps)
@@ -98,37 +121,72 @@ internal sealed class RestrictionEnforcer : IDisposable
         if (killed.Count > 0 && DateTime.UtcNow - _lastAppNotice > TimeSpan.FromSeconds(10))
         {
             _lastAppNotice = DateTime.UtcNow;
-            _host.ShowMessage("Application interdite",
+            _host.ShowMessage(title,
                 $"« {string.Join(", ", killed.Distinct())} » a été fermée : interdite pendant le cours.", 5);
         }
+    }
+
+    /// <summary>Titre de l'onglet actif si la fenêtre au premier plan est un navigateur, sinon null.</summary>
+    private string? ActiveBrowserTitle()
+    {
+        // Laisse au navigateur le temps de fermer l'onglet avant de réessayer.
+        if (DateTime.UtcNow - _lastSiteClose < TimeSpan.FromMilliseconds(1500)) return null;
+        IntPtr hwnd = Native.GetForegroundWindow();
+        if (hwnd == IntPtr.Zero) return null;
+        Native.GetWindowThreadProcessId(hwnd, out uint pid);
+        try
+        {
+            using var p = Process.GetProcessById((int)pid);
+            if (!Browsers.Contains(p.ProcessName)) return null;
+        }
+        catch { return null; }
+        var sb = new StringBuilder(512);
+        Native.GetWindowText(hwnd, sb, sb.Capacity);
+        return sb.ToString();
+    }
+
+    private void CloseActiveTab(string title, string message)
+    {
+        _lastSiteClose = DateTime.UtcNow;
+        const ushort VK_CONTROL = 0x11, VK_W = 0x57;
+        InputInjector.Chord(VK_CONTROL, VK_W);
+        _host.ShowMessage(title, message, 5);
     }
 
     private void EnforceSites(List<string> sites)
     {
         if (sites.Count == 0) return;
-        // Laisse au navigateur le temps de fermer l'onglet avant de réessayer.
-        if (DateTime.UtcNow - _lastSiteClose < TimeSpan.FromMilliseconds(1500)) return;
-
-        IntPtr hwnd = Native.GetForegroundWindow();
-        if (hwnd == IntPtr.Zero) return;
-
-        Native.GetWindowThreadProcessId(hwnd, out uint pid);
-        string procName;
-        try { using var p = Process.GetProcessById((int)pid); procName = p.ProcessName; }
-        catch { return; }
-        if (!Browsers.Contains(procName)) return;
-
-        var sb = new StringBuilder(512);
-        Native.GetWindowText(hwnd, sb, sb.Capacity);
-        string title = sb.ToString();
+        string? title = ActiveBrowserTitle();
+        if (title == null) return;
         string? hit = sites.FirstOrDefault(s => title.Contains(s, StringComparison.OrdinalIgnoreCase));
-        if (hit == null) return;
+        if (hit != null)
+            CloseActiveTab("Site interdit", $"Ce site (« {hit} ») est interdit pendant le cours. L'onglet a été fermé.");
+    }
 
-        _lastSiteClose = DateTime.UtcNow;
-        const ushort VK_CONTROL = 0x11, VK_W = 0x57;
-        InputInjector.Chord(VK_CONTROL, VK_W);
-        _host.ShowMessage("Site interdit",
-            $"Ce site (« {hit} ») est interdit pendant le cours. L'onglet a été fermé.", 5);
+    // Titres neutres (nouvel onglet, page en chargement) tolérés en mode « sites approuvés ».
+    private static readonly string[] NeutralTitles =
+    {
+        "nouvel onglet", "new tab", "nouvelle page", "page de démarrage", "start page", "démarrer", "accueil",
+        "untitled", "sans titre", "chargement", "loading", "about:blank",
+    };
+    private string _lastRejected = "";
+
+    private void EnforceAllowList(List<string> allowed)
+    {
+        string? title = ActiveBrowserTitle();
+        if (title == null) return;
+        string t = title.Trim();
+        // Retire le nom du navigateur en fin de titre (« Page - Google Chrome »).
+        int dash = t.LastIndexOf(" - ", StringComparison.Ordinal);
+        string page = dash > 0 ? t[..dash] : "";
+        if (page.Length == 0 || NeutralTitles.Any(n => page.Contains(n, StringComparison.OrdinalIgnoreCase))) { _lastRejected = ""; return; }
+        if (allowed.Any(a => t.Contains(a, StringComparison.OrdinalIgnoreCase))) { _lastRejected = ""; return; }
+
+        // Deux constats consécutifs avant d'agir : évite de fermer une page encore en chargement.
+        if (_lastRejected != t) { _lastRejected = t; return; }
+        _lastRejected = "";
+        CloseActiveTab("Site non autorisé",
+            "Pendant ce cours, seuls ces sites sont autorisés : " + (allowed.Count > 0 ? string.Join(", ", allowed) : "aucun") + ".");
     }
 
     public void Dispose() => _timer.Dispose();

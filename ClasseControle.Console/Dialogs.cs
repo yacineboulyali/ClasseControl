@@ -23,6 +23,8 @@ internal sealed class InputDialog : Window
         var ok = new Button { Content = "Valider", Padding = new Thickness(16, 6, 16, 6) };
         var cancel = new Button { Content = "Annuler", Padding = new Thickness(16, 6, 16, 6) };
         ok.Click += (_, _) => { Result = _box.Text; Close(); };
+        _box.KeyDown += (_, e) => { if (e.Key == Avalonia.Input.Key.Enter) { Result = _box.Text; Close(); } };
+        Opened += (_, _) => { _box.Focus(); _box.SelectAll(); };
         cancel.Click += (_, _) => { Result = null; Close(); };
 
         Content = new StackPanel

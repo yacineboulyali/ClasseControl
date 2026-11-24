@@ -21,6 +21,9 @@ public sealed class App : Application, IAgentHost
     private NativeMenuItem? _teamItem;
     private LoginOverlay? _login;
     private TeamWindow? _team;
+    private ChatWindow? _chat;
+    private SurveyPopup? _survey;
+    private int _stars;
 
     public override void Initialize()
     {
@@ -61,6 +64,9 @@ public sealed class App : Application, IAgentHost
         _teamItem = new NativeMenuItem("👥 Espace d'équipe") { IsEnabled = false };
         _teamItem.Click += (_, _) => { if (_team != null) { _team.Show(); _team.Activate(); } };
         menu.Items.Add(_teamItem);
+        var chatItem = new NativeMenuItem("💬 Écrire au professeur");
+        chatItem.Click += (_, _) => OpenChat();
+        menu.Items.Add(chatItem);
         menu.Items.Add(new NativeMenuItemSeparator());
         menu.Items.Add(quit);
 
@@ -108,15 +114,15 @@ public sealed class App : Application, IAgentHost
         _lock?.Activate();
     }
 
-    public void ShowLock(string message, byte[]? image) => Dispatcher.UIThread.Post(() =>
+    public void ShowLock(string message, byte[]? image, bool blank) => Dispatcher.UIThread.Post(() =>
     {
         if (_lock == null)
         {
-            _lock = new LockOverlay(message, image);
+            _lock = new LockOverlay(message, image, blank);
             _lock.Closed += (_, _) => _lock = null;
             _lock.Show();
         }
-        else _lock.Update(message, image);
+        else _lock.Update(message, image, blank);
         RaiseTop();
     });
 
@@ -214,4 +220,52 @@ public sealed class App : Application, IAgentHost
     });
 
     public void TeamDisconnected() => Dispatcher.UIThread.Post(() => _team?.Disconnected());
+
+    // ---------- Discussion / annonces / récompenses / sondages ----------
+    private void OpenChat()
+    {
+        _chat ??= new ChatWindow(text => _server?.SendChat(text));
+        _chat.Show();
+        _chat.Activate();
+    }
+
+    public void ChatReceived(ChatPayload message) => Dispatcher.UIThread.Post(() =>
+    {
+        OpenChat();
+        _chat!.Add(message);
+    });
+
+    public void AnnouncementChanged(bool live, string speaker) => Dispatcher.UIThread.Post(() =>
+    {
+        if (_tray != null)
+            _tray.ToolTipText = live ? $"Classe_controle — 🔊 annonce de {speaker}" : "Classe_controle — Agent";
+        if (live) new MessagePopup("🔊 Annonce", $"{speaker} parle à la classe. Montez le son si besoin.", 4).Show();
+    });
+
+    public void RewardChanged(RewardPayload reward) => Dispatcher.UIThread.Post(() =>
+    {
+        _stars = reward.Stars;
+        if (_tray != null) _tray.ToolTipText = $"Classe_controle — ⭐ {_stars} étoile(s)";
+        if (reward.Delta > 0)
+            new MessagePopup("⭐ Bravo !", $"Le professeur vous a donné une étoile.\nTotal : {new string('⭐', Math.Min(_stars, 10))} ({_stars})", 5).Show();
+    });
+
+    public void ShowSurvey(SurveyPayload survey) => Dispatcher.UIThread.Post(() =>
+    {
+        try { _survey?.ForceClose(); } catch { }
+        _survey = new SurveyPopup(survey, choice => _server?.SendSurveyAnswer(survey.Id, choice));
+        _survey.Closed += (_, _) => _survey = null;
+        _survey.Show();
+        _survey.Activate();
+        RaiseTop();
+    });
+
+    public void CloseSurvey(string surveyId) => Dispatcher.UIThread.Post(() =>
+    {
+        if (_survey != null && (surveyId.Length == 0 || _survey.SurveyId == surveyId))
+        {
+            _survey.ForceClose();
+            _survey = null;
+        }
+    });
 }

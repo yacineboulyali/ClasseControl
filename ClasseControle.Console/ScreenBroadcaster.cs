@@ -15,7 +15,7 @@ internal sealed class ScreenBroadcaster
     private const int MaxWidth = 1366;
     private const int Quality = 55;
 
-    private readonly ScreenCapture _capture = new();
+    private ScreenCapture? _capture; // créé à la première diffusion
     private readonly List<AgentConnection> _targets = new();
     private readonly object _gate = new();
     private CancellationTokenSource? _cts;
@@ -99,6 +99,7 @@ internal sealed class ScreenBroadcaster
             var started = DateTime.UtcNow;
             try
             {
+                _capture ??= new ScreenCapture();
                 var (jpeg, w, h, sw, sh) = _capture.CaptureJpeg(MaxWidth, Quality);
                 byte[] hash = SHA1.HashData(jpeg);
                 bool same = lastHash != null && hash.AsSpan().SequenceEqual(lastHash);

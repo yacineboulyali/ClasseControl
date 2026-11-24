@@ -7,6 +7,12 @@ namespace ClasseControle.Console;
 /// Paramètres de la console, conservés d'une séance à l'autre dans
 /// %AppData%\Classe_controle\console.json.
 /// </summary>
+internal sealed class QuickItem
+{
+    public string Name { get; set; } = "";
+    public string Target { get; set; } = "";
+}
+
 internal sealed class ConsoleSettings
 {
     public string RoomCode { get; set; } = "CLASSE";
@@ -16,6 +22,19 @@ internal sealed class ConsoleSettings
     /// <summary>Image de l'écran de verrouillage, déjà recompressée en JPEG (vide = aucune).</summary>
     public string LockImageFile { get; set; } = "";
     public int TeamSize { get; set; } = 3;
+    public int TileSize { get; set; } = 1;          // 0 petit, 1 moyen, 2 grand
+    public int ThumbFps { get; set; } = 2;
+    public List<QuickItem> QuickLaunch { get; set; } = new()
+    {
+        new() { Name = "Bloc-notes", Target = "notepad" },
+        new() { Name = "Calculatrice", Target = "calc" },
+        new() { Name = "Paint", Target = "mspaint" },
+        new() { Name = "Word", Target = "winword" },
+        new() { Name = "Excel", Target = "excel" },
+        new() { Name = "PowerPoint", Target = "powerpnt" },
+        new() { Name = "Navigateur (Edge)", Target = "msedge" },
+    };
+    public List<string> AllowedSites { get; set; } = new();
 
     private static string Dir =>
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Classe_controle");

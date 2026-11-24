@@ -37,14 +37,31 @@ internal sealed class RemoteViewWindow : Window
             Focusable = true,
         };
 
-        _controlToggle = new CheckBox { Content = "Prendre le contrôle (souris + clavier)", Margin = new Thickness(8, 0, 0, 0) };
+        _controlToggle = new CheckBox
+        {
+            Content = new TextBlock { Text = "Prendre le contrôle (souris + clavier)", Foreground = Brushes.White },
+            Margin = new Thickness(12, 0, 0, 0),
+        };
 
         var toolbar = new StackPanel
         {
             Orientation = Orientation.Horizontal,
             Background = new SolidColorBrush(Color.FromRgb(22, 27, 34)),
             Height = 40,
-            Children = { _controlToggle },
+            Children =
+            {
+                new Border
+                {
+                    Background = new SolidColorBrush(Color.FromRgb(21, 41, 77)),
+                    Padding = new Thickness(14, 0),
+                    Child = new TextBlock
+                    {
+                        Text = $"Vous visualisez : {conn.DisplayName} — {conn.Info.MachineName}",
+                        Foreground = Brushes.White, FontWeight = FontWeight.SemiBold, VerticalAlignment = VerticalAlignment.Center,
+                    },
+                },
+                _controlToggle,
+            },
         };
 
         var grid = new Grid();

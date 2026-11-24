@@ -26,6 +26,23 @@ ClasseControle.Console   Poste prof   (Avalonia)
 - **Écran** : capture GDI `BitBlt` → JPEG, streaming à quelques images/seconde.
 - **Contrôle à distance** : `SendInput` (souris/clavier), coordonnées normalisées.
 
+## Interface de la console
+
+- **Ruban à onglets** : Classe · Groupes · Sélection · Retour & bien-être ·
+  Journal · Administrer · Affichage, avec de grandes icônes groupées
+  (Salle, Séance, Élève, Accès web, Communiquer, Miniatures…)
+- **Barre latérale** d'accès rapide (classe, diffusion, annonce, sondage,
+  web, équipes, présence, journal, paramètres)
+- **Vignettes** : bandeau (élève, heure, étoiles, séance), écran en direct,
+  pied (élève · utilisateur · poste), indicateur de signal, badges
+  « Aide », « Verrouillé », « Écran noir »
+- Clic = sélection (Ctrl+clic pour plusieurs, Échap pour tout désélectionner),
+  double-clic = voir l'écran, **clic droit = palette d'actions** (verrouiller,
+  écran noir, voir, fichier, discussion, message, lancer, présenter, étoiles,
+  gérer l'alimentation…)
+- Les commandes s'appliquent à la **sélection**, ou à **toute la classe** si
+  rien n'est sélectionné
+
 ## Fonctionnalités
 
 - 🖥️ **Miniatures de tous les écrans en direct** dans la console
@@ -55,6 +72,18 @@ ClasseControle.Console   Poste prof   (Avalonia)
 - 👥 **Équipes** : répartition aléatoire (nombre d'élèves par équipe) ou
   manuelle, avec pour chaque équipe un **document partagé** édité à plusieurs
   en même temps et une **discussion** ; suivi en direct et export des travaux
+- 🌙 **Écran noir** (attirer l'attention), distinct du verrouillage
+- 💬 **Discussion** professeur ↔ élève (l'élève peut écrire depuis l'icône)
+- 📢 **Annonce audio** : le micro du professeur diffusé en direct
+- ⭐ **Récompenses** : donner / retirer des étoiles, visibles sur la vignette,
+  chez l'élève et dans l'export de présence
+- 📊 **Sondage rapide** avec modèles (Oui/Non, Compris ?, A-B-C-D, humeur…)
+  et résultats en direct
+- 🌐 **Accès web** : sans restriction / sites interdits / **sites approuvés
+  uniquement** / **web bloqué**
+- 🚀 **Lancement rapide** : favoris configurables (Word, Excel, sites…)
+- 🖥 **Bureau élève** : réduire toutes les fenêtres, fermer toutes les applications
+- ✋ **Demandes d'aide** : liste des mains levées dans le ruban
 - 📜 **Journal des actions** du professeur, enregistré automatiquement dans
   `Documents\Classe_controle\journal-AAAA-MM-JJ.csv`
 
@@ -70,8 +99,8 @@ Un seul installateur ; au premier écran on choisit le **type de poste** :
 Déploiement silencieux sur toute une salle :
 
 ```bat
-ClasseControle-Setup-1.3.0.exe /VERYSILENT /ROLE=eleve /ROOM=CLASSE
-ClasseControle-Setup-1.3.0.exe /VERYSILENT /ROLE=prof
+ClasseControle-Setup-1.4.0.exe /VERYSILENT /ROLE=eleve /ROOM=CLASSE
+ClasseControle-Setup-1.4.0.exe /VERYSILENT /ROLE=prof
 ```
 
 Pour construire l'installateur (sous Windows, avec le SDK .NET 8 et
@@ -117,10 +146,11 @@ RoomCode=CLASSE          # doit être identique à celui de la console
 DisplayName=NOM-DU-PC    # nom affiché dans la console
 ```
 
-## Pistes v1.4+
+## Pistes v1.5+
 
 - Chiffrement TLS du canal de contrôle + mot de passe fort
 - Service Windows « gardien » qui relance l'agent + déploiement MSI/GPO
+- Contrôle des imprimantes et des clés USB, planificateur de travaux
 - Blocage des sites au niveau réseau (proxy / DNS) en complément du blocage par titre
 - Sondages / quiz rapides envoyés à la classe
 
