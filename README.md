@@ -45,8 +45,46 @@ ClasseControle.Console   Poste prof   (Avalonia)
   la carte du poste passe en orange et remonte en tête
 - 📋 **Liste de présence** de la séance (arrivée, départ, mains levées),
   export CSV pour Excel
+- 🎓 **Démarrer la séance** : chaque élève doit saisir son prénom et son nom
+  (écran plein écran) pour accéder à son poste ; les noms apparaissent sur les
+  cartes, dans la présence et dans les équipes
+- 🌐 **Ouvrir un site web** sur tous les postes (navigateur par défaut)
+- 🖼 **Écran de verrouillage personnalisé** : texte et image choisis dans
+  ⚙ Paramètres
+- 📡 **Diffuser l'écran d'un élève** à toute la classe (relayé par la console)
+- 👥 **Équipes** : répartition aléatoire (nombre d'élèves par équipe) ou
+  manuelle, avec pour chaque équipe un **document partagé** édité à plusieurs
+  en même temps et une **discussion** ; suivi en direct et export des travaux
 - 📜 **Journal des actions** du professeur, enregistré automatiquement dans
   `Documents\Classe_controle\journal-AAAA-MM-JJ.csv`
+
+## Installation (recommandée)
+
+Un seul installateur ; au premier écran on choisit le **type de poste** :
+
+| Choix | Ce qui est installé |
+|---|---|
+| **Poste du professeur** | La console, avec raccourcis menu Démarrer et Bureau |
+| **Poste élève** | Uniquement l'agent, **sans aucun raccourci** : il démarre seul à chaque ouverture de session (tâche planifiée cachée, relancée automatiquement) et n'apparaît que dans la zone de notification. Le code de salle est demandé pendant l'installation. Les règles du pare-feu sont créées automatiquement. |
+
+Déploiement silencieux sur toute une salle :
+
+```bat
+ClasseControle-Setup-1.3.0.exe /VERYSILENT /ROLE=eleve /ROOM=CLASSE
+ClasseControle-Setup-1.3.0.exe /VERYSILENT /ROLE=prof
+```
+
+Pour construire l'installateur (sous Windows, avec le SDK .NET 8 et
+[Inno Setup 6](https://jrsoftware.org/isinfo.php)) :
+
+```powershell
+powershell -ExecutionPolicy Bypass -File installer\build.ps1
+```
+
+> L'agent élève n'est pas un « service Windows » au sens strict : un service
+> tourne dans une session invisible (session 0) et ne pourrait ni afficher
+> l'écran de verrouillage ni capturer l'écran de l'élève. La tâche planifiée
+> joue le même rôle (démarrage automatique, arrière-plan, relance).
 
 ## Compilation
 
@@ -79,10 +117,10 @@ RoomCode=CLASSE          # doit être identique à celui de la console
 DisplayName=NOM-DU-PC    # nom affiché dans la console
 ```
 
-## Pistes v1.3+
+## Pistes v1.4+
 
 - Chiffrement TLS du canal de contrôle + mot de passe fort
-- Service Windows + déploiement MSI/GPO
+- Service Windows « gardien » qui relance l'agent + déploiement MSI/GPO
 - Blocage des sites au niveau réseau (proxy / DNS) en complément du blocage par titre
 - Sondages / quiz rapides envoyés à la classe
 

@@ -10,7 +10,7 @@ namespace ClasseControle.Agent;
 /// <summary>Actions UI que le serveur demande à l'application agent (thread UI).</summary>
 internal interface IAgentHost
 {
-    void ShowLock(string message);
+    void ShowLock(string message, byte[]? image);
     void HideLock();
     void ShowMessage(string title, string text, int durationSeconds);
     void SetStatus(string status);
@@ -19,6 +19,18 @@ internal interface IAgentHost
     void HideBroadcast();
     /// <summary>État de la main levée changé (par l'élève ou baissée par le prof).</summary>
     void SetHandRaised(bool raised);
+
+    // --- Séance : identification obligatoire de l'élève ---
+    void ShowLogin(SessionStartPayload session, string suggestedName);
+    void LoginFailed(string message);
+    void HideLogin();
+
+    // --- Espace d'équipe ---
+    void OpenTeam(GroupOpenPayload group);
+    void TeamDoc(GroupDocPayload doc);
+    void TeamChat(GroupChatPayload message);
+    void CloseTeam(string groupId);
+    void TeamDisconnected();
 }
 
 /// <summary>
@@ -41,6 +53,19 @@ internal sealed class AgentServer
     private readonly List<Session> _sessions = new();
     private volatile bool _handRaised;
 
+    // Séance en cours (démarrée par une console) et identité de l'élève.
+    private SessionStartPayload? _lesson;
+    private Session? _lessonOwner;
+    private string? _loggedLessonId;
+    private string _studentName = "";
+    private CancellationTokenSource? _lessonTimeout;
+
+    // Groupe de travail (espace d'équipe).
+    private Session? _groupOwner;
+
+    /// <summary>Nom saisi par l'élève pour la séance (vide si non identifié).</summary>
+    public string StudentName => _studentName;
+
     public AgentServer(AgentSettings settings, IAgentHost host)
     {
         _settings = settings;
@@ -57,6 +82,31 @@ internal sealed class AgentServer
         _host.SetHandRaised(raised);
         _ = PushToAll(MessageType.HandRaise, new HandRaisePayload { Raised = raised });
     }
+
+    private static async Task SendTo<T>(Session? s, MessageType type, T payload)
+    {
+        if (s == null) return;
+        try { await SendLocked(s.Stream, s.WriteLock, type, payload, s.Ct); } catch { }
+    }
+
+    /// <summary>L'élève a saisi son nom sur l'écran d'entrée en séance.</summary>
+    public void SubmitLogin(string fullName)
+    {
+        var lesson = _lesson;
+        var owner = _lessonOwner;
+        if (lesson == null || owner == null)
+        {
+            _host.LoginFailed("Le professeur n'est pas connecté. Patientez quelques instants puis réessayez.");
+            return;
+        }
+        _studentName = fullName;
+        _ = SendTo(owner, MessageType.StudentLogin, new StudentLoginPayload { SessionId = lesson.SessionId, FullName = fullName });
+    }
+
+    public void SendGroupDoc(GroupDocPayload doc) => _ = SendTo(_groupOwner, MessageType.GroupDoc, doc);
+
+    public void SendGroupChat(string groupId, string text) =>
+        _ = SendTo(_groupOwner, MessageType.GroupChat, new GroupChatPayload { GroupId = groupId, Text = text });
 
     private async Task PushToAll<T>(MessageType type, T payload)
     {
@@ -169,6 +219,7 @@ internal sealed class AgentServer
                 Reason = ok ? "" : "Code de salle incorrect",
                 MachineName = _settings.DisplayName,
                 UserName = Environment.UserName,
+                StudentName = _studentName,
             }, ct);
             if (!ok) return;
 
@@ -189,7 +240,7 @@ internal sealed class AgentServer
                 {
                     case MessageType.Lock:
                         var lk = Wire.Read<LockPayload>(env) ?? new LockPayload();
-                        _host.ShowLock(lk.Message);
+                        _host.ShowLock(lk.Message, lk.ImageJpeg);
                         break;
 
                     case MessageType.Unlock:
@@ -267,6 +318,60 @@ internal sealed class AgentServer
                         await PushToAll(MessageType.HandRaise, new HandRaisePayload { Raised = false });
                         break;
 
+                    case MessageType.SessionStart:
+                        var st = Wire.Read<SessionStartPayload>(env);
+                        if (st == null) break;
+                        _lesson = st;
+                        _lessonOwner = session;
+                        _lessonTimeout?.Cancel();
+                        if (_loggedLessonId == st.SessionId && _studentName.Length > 0)
+                            // Déjà identifié pour cette séance (reconnexion) : on se réannonce.
+                            await SendTo(session, MessageType.StudentLogin, new StudentLoginPayload { SessionId = st.SessionId, FullName = _studentName });
+                        else
+                            _host.ShowLogin(st, _studentName);
+                        break;
+
+                    case MessageType.StudentLoginAck:
+                        var la2 = Wire.Read<StudentLoginAckPayload>(env) ?? new StudentLoginAckPayload();
+                        if (la2.Accepted && _lesson != null)
+                        {
+                            _loggedLessonId = _lesson.SessionId;
+                            _host.HideLogin();
+                            _host.SetStatus($"Séance « {_lesson.Title} » — {_studentName}");
+                        }
+                        else if (!la2.Accepted) _host.LoginFailed(la2.Message);
+                        break;
+
+                    case MessageType.SessionEnd:
+                        _lesson = null;
+                        _lessonOwner = null;
+                        _loggedLessonId = null;
+                        _host.HideLogin();
+                        break;
+
+                    case MessageType.GroupOpen:
+                        var go = Wire.Read<GroupOpenPayload>(env);
+                        if (go == null) break;
+                        _groupOwner = session;
+                        _host.OpenTeam(go);
+                        break;
+
+                    case MessageType.GroupDoc:
+                        var gd = Wire.Read<GroupDocPayload>(env);
+                        if (gd != null) _host.TeamDoc(gd);
+                        break;
+
+                    case MessageType.GroupChat:
+                        var gc = Wire.Read<GroupChatPayload>(env);
+                        if (gc != null) _host.TeamChat(gc);
+                        break;
+
+                    case MessageType.GroupClose:
+                        var gcl = Wire.Read<GroupClosePayload>(env) ?? new GroupClosePayload();
+                        if (session == _groupOwner) _groupOwner = null;
+                        _host.CloseTeam(gcl.GroupId);
+                        break;
+
                     case MessageType.SetRestrictions:
                         var rp = Wire.Read<RestrictionsPayload>(env);
                         if (rp != null) _restrictions.Apply(rp);
@@ -282,6 +387,25 @@ internal sealed class AgentServer
             if (session != null) lock (_sessions) _sessions.Remove(session);
             // Si le professeur se déconnecte pendant une diffusion, on rend la main à l'élève.
             if (broadcasting) _host.HideBroadcast();
+            if (session != null && session == _groupOwner)
+            {
+                _groupOwner = null;
+                _host.TeamDisconnected();
+            }
+            if (session != null && session == _lessonOwner)
+            {
+                // Le professeur a perdu la connexion : on lui laisse 2 minutes pour
+                // revenir avant de libérer le poste (évite de bloquer l'élève).
+                _lessonOwner = null;
+                var cts = new CancellationTokenSource();
+                _lessonTimeout = cts;
+                _ = Task.Delay(TimeSpan.FromMinutes(2), cts.Token).ContinueWith(t =>
+                {
+                    if (t.IsCanceled || _lessonOwner != null) return;
+                    _lesson = null;
+                    _host.HideLogin();
+                }, TaskScheduler.Default);
+            }
             try { client.Close(); } catch { }
             _host.SetStatus("En attente de connexion…");
         }

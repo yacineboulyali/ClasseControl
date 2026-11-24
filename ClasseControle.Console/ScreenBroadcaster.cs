@@ -21,7 +21,14 @@ internal sealed class ScreenBroadcaster
     private CancellationTokenSource? _cts;
     private BroadcastStartPayload _options = new();
 
-    public bool IsRunning => _cts != null;
+    public bool IsRunning => _cts != null || _relaySource != null;
+
+    /// <summary>Élève dont l'écran est relayé à la classe (null = écran du professeur).</summary>
+    public AgentConnection? RelaySource => _relaySource;
+    private AgentConnection? _relaySource;
+
+    private static readonly StartScreenPayload RelayProfile =
+        new() { MaxWidth = MaxWidth, Quality = Quality, Fps = Fps, AllowControl = false };
 
     public IReadOnlyList<AgentConnection> Targets
     {
@@ -39,20 +46,45 @@ internal sealed class ScreenBroadcaster
         _ = Task.Run(() => Loop(ct));
     }
 
+    /// <summary>
+    /// Diffuse l'écran d'un élève vers les autres postes : la console reçoit son
+    /// flux d'écran et le relaie tel quel (aucune connexion directe entre élèves).
+    /// </summary>
+    public async Task StartRelayAsync(AgentConnection source, IEnumerable<AgentConnection> targets, BroadcastStartPayload options)
+    {
+        if (IsRunning) return;
+        _options = options;
+        lock (_gate) { _targets.Clear(); _targets.AddRange(targets.Where(t => t != source)); }
+        _relaySource = source;
+        source.FrameReceived += OnRelayFrame;
+        foreach (var t in Targets) await t.StartBroadcast(options);
+        await source.AcquireStream("relay", RelayProfile);
+    }
+
+    private void OnRelayFrame(ScreenFramePayload frame)
+    {
+        foreach (var t in Targets) t.TrySendBroadcastFrame(frame);
+    }
+
     /// <summary>Ajoute un poste (re)connecté pendant une diffusion en cours.</summary>
     public async Task AddAsync(AgentConnection c)
     {
-        if (!IsRunning) return;
+        if (!IsRunning || c == _relaySource) return;
         lock (_gate) { if (!_targets.Contains(c)) _targets.Add(c); }
         await c.StartBroadcast(_options);
     }
 
     public async Task StopAsync()
     {
+        if (_relaySource is { } src)
+        {
+            _relaySource = null;
+            src.FrameReceived -= OnRelayFrame;
+            try { await src.ReleaseStream("relay"); } catch { }
+        }
         var cts = _cts;
-        if (cts == null) return;
         _cts = null;
-        cts.Cancel();
+        cts?.Cancel();
         foreach (var t in Targets) { try { await t.StopBroadcast(); } catch { } }
         lock (_gate) _targets.Clear();
     }

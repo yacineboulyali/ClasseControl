@@ -19,6 +19,10 @@ internal sealed class AgentConnection : IDisposable
     public bool IsLocked { get; set; }
     public bool Selected { get; set; }
     public bool IsHandRaised { get; private set; }
+    /// <summary>Nom saisi par l'élève en début de séance (vide s'il ne s'est pas identifié).</summary>
+    public string StudentName { get; set; } = "";
+    /// <summary>Nom à afficher : celui de l'élève s'il s'est identifié, sinon l'utilisateur Windows.</summary>
+    public string DisplayName => StudentName.Length > 0 ? StudentName : Info.UserName;
 
     public string Key => $"{Info.IpAddress}:{Info.ControlPort}";
     public string Title => $"{Info.MachineName}  ({Info.UserName})";
@@ -29,6 +33,9 @@ internal sealed class AgentConnection : IDisposable
     public event Action<AgentConnection, bool>? ConnectionChanged;
     /// <summary>Déclenché quand l'élève lève ou baisse la main.</summary>
     public event Action<AgentConnection, bool>? HandChanged;
+    public event Action<AgentConnection, StudentLoginPayload>? StudentLogin;
+    public event Action<AgentConnection, GroupDocPayload>? GroupDocReceived;
+    public event Action<AgentConnection, GroupChatPayload>? GroupChatReceived;
 
     public AgentConnection(DiscoveryReply info) => Info = info;
 
@@ -51,6 +58,7 @@ internal sealed class AgentConnection : IDisposable
                 return (false, ap?.Reason ?? "Connexion refusée");
             }
 
+            if (!string.IsNullOrWhiteSpace(ap.StudentName)) StudentName = ap.StudentName;
             IsConnected = true;
             _cts = new CancellationTokenSource();
             _ = Task.Run(() => ReadLoop(_cts.Token));
@@ -77,6 +85,21 @@ internal sealed class AgentConnection : IDisposable
                     var f = Wire.Read<ScreenFramePayload>(env);
                     if (f != null) FrameReceived?.Invoke(f);
                 }
+                else if (env.Type == MessageType.StudentLogin)
+                {
+                    var l = Wire.Read<StudentLoginPayload>(env);
+                    if (l != null) StudentLogin?.Invoke(this, l);
+                }
+                else if (env.Type == MessageType.GroupDoc)
+                {
+                    var d = Wire.Read<GroupDocPayload>(env);
+                    if (d != null) GroupDocReceived?.Invoke(this, d);
+                }
+                else if (env.Type == MessageType.GroupChat)
+                {
+                    var c = Wire.Read<GroupChatPayload>(env);
+                    if (c != null) GroupChatReceived?.Invoke(this, c);
+                }
                 else if (env.Type == MessageType.HandRaise)
                 {
                     var h = Wire.Read<HandRaisePayload>(env);
@@ -97,7 +120,16 @@ internal sealed class AgentConnection : IDisposable
         }
     }
 
-    public Task Lock(string message) => Send(MessageType.Lock, new LockPayload { Message = message });
+    public Task Lock(string message, byte[]? image = null) =>
+        Send(MessageType.Lock, new LockPayload { Message = message, ImageJpeg = image });
+    public Task StartLesson(SessionStartPayload p) => Send(MessageType.SessionStart, p);
+    public Task EndLesson() => Send(MessageType.SessionEnd, new { });
+    public Task AckLogin(bool ok, string message) =>
+        Send(MessageType.StudentLoginAck, new StudentLoginAckPayload { Accepted = ok, Message = message });
+    public Task OpenGroup(GroupOpenPayload p) => Send(MessageType.GroupOpen, p);
+    public Task SendGroupDoc(GroupDocPayload p) => Send(MessageType.GroupDoc, p);
+    public Task SendGroupChat(GroupChatPayload p) => Send(MessageType.GroupChat, p);
+    public Task CloseGroup(string id) => Send(MessageType.GroupClose, new GroupClosePayload { GroupId = id });
     public Task Unlock() => Send(MessageType.Unlock, new { });
     public Task ShowMessage(string title, string text, int seconds) =>
         Send(MessageType.ShowMessage, new ShowMessagePayload { Title = title, Text = text, DurationSeconds = seconds });

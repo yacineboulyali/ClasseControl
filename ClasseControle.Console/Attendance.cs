@@ -13,6 +13,8 @@ internal sealed class AttendanceRow : INotifyPropertyChanged
     public required string User { get; init; }
     public required string Ip { get; init; }
     public DateTime FirstSeen { get; init; }
+    /// <summary>Nom saisi par l'élève en début de séance.</summary>
+    public string StudentName { get; set; } = "";
 
     private DateTime? _leftAt;
     private bool _present;
@@ -65,6 +67,12 @@ internal static class Attendance
         row.LeftAt = DateTime.Now;
     }
 
+    public static void SetStudentName(AgentConnection c, string name)
+    {
+        var row = Rows.FirstOrDefault(r => r.Key == c.Key);
+        if (row != null) row.StudentName = name;
+    }
+
     public static void CountHand(AgentConnection c)
     {
         var row = Rows.FirstOrDefault(r => r.Key == c.Key);
@@ -75,9 +83,9 @@ internal static class Attendance
     {
         var sb = new StringBuilder();
         sb.AppendLine($"Séance du {SessionStart:dd/MM/yyyy} à {SessionStart:HH:mm};Professeur : {ActionLog.Csv(teacher)};Salle : {ActionLog.Csv(room)}");
-        sb.AppendLine("Poste;Utilisateur Windows;Adresse IP;Arrivée;Départ;Statut;Mains levées");
+        sb.AppendLine("Élève;Poste;Utilisateur Windows;Adresse IP;Arrivée;Départ;Statut;Mains levées");
         foreach (var r in Rows.OrderBy(r => r.Machine, StringComparer.OrdinalIgnoreCase))
-            sb.AppendLine(string.Join(';', ActionLog.Csv(r.Machine), ActionLog.Csv(r.User), r.Ip,
+            sb.AppendLine(string.Join(';', ActionLog.Csv(r.StudentName), ActionLog.Csv(r.Machine), ActionLog.Csv(r.User), r.Ip,
                 r.FirstText, r.Present ? "" : r.LeftText, r.Present ? "Présent" : "Parti", r.Hands));
         return sb.ToString();
     }

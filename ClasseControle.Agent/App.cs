@@ -4,6 +4,7 @@ using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Platform;
 using Avalonia.Threading;
 using System.Runtime.Versioning;
+using ClasseControle.Common;
 
 namespace ClasseControle.Agent;
 
@@ -17,6 +18,9 @@ public sealed class App : Application, IAgentHost
     private LockOverlay? _lock;
     private BroadcastWindow? _broadcast;
     private NativeMenuItem? _handItem;
+    private NativeMenuItem? _teamItem;
+    private LoginOverlay? _login;
+    private TeamWindow? _team;
 
     public override void Initialize()
     {
@@ -54,6 +58,9 @@ public sealed class App : Application, IAgentHost
         menu.Items.Add(_statusItem);
         menu.Items.Add(new NativeMenuItemSeparator());
         menu.Items.Add(_handItem);
+        _teamItem = new NativeMenuItem("👥 Espace d'équipe") { IsEnabled = false };
+        _teamItem.Click += (_, _) => { if (_team != null) { _team.Show(); _team.Activate(); } };
+        menu.Items.Add(_teamItem);
         menu.Items.Add(new NativeMenuItemSeparator());
         menu.Items.Add(quit);
 
@@ -92,22 +99,32 @@ public sealed class App : Application, IAgentHost
     }
 
     // ---------- IAgentHost (appelé depuis les threads réseau) ----------
-    public void ShowLock(string message) => Dispatcher.UIThread.Post(() =>
+    // Priorité des fenêtres plein écran : verrouillage > entrée en séance > diffusion.
+    // Chacune ne reprend le premier plan que si aucune fenêtre plus prioritaire n'est ouverte.
+    private void RaiseTop()
+    {
+        _broadcast?.Activate();
+        _login?.Activate();
+        _lock?.Activate();
+    }
+
+    public void ShowLock(string message, byte[]? image) => Dispatcher.UIThread.Post(() =>
     {
         if (_lock == null)
         {
-            _lock = new LockOverlay(message);
+            _lock = new LockOverlay(message, image);
             _lock.Closed += (_, _) => _lock = null;
             _lock.Show();
         }
-        else _lock.UpdateMessage(message);
-        _lock.Activate();
+        else _lock.Update(message, image);
+        RaiseTop();
     });
 
     public void HideLock() => Dispatcher.UIThread.Post(() =>
     {
         try { _lock?.Close(); } catch { }
         _lock = null;
+        RaiseTop();
     });
 
     public void ShowMessage(string title, string text, int durationSeconds) =>
@@ -124,14 +141,12 @@ public sealed class App : Application, IAgentHost
         if (_broadcast == null)
         {
             _broadcast = new BroadcastWindow(title, exclusive);
-            _broadcast.YieldTo = () => _lock != null;
+            _broadcast.YieldTo = () => _lock != null || _login != null;
             _broadcast.Closed += (_, _) => _broadcast = null;
             _broadcast.Show();
         }
         else _broadcast.SetMode(title, exclusive);
-        _broadcast.Activate();
-        // Le verrouillage reste prioritaire s'il est actif.
-        _lock?.Activate();
+        RaiseTop();
     });
 
     public void ShowBroadcastFrame(byte[] jpeg) => Dispatcher.UIThread.Post(() => _broadcast?.ShowFrame(jpeg));
@@ -149,4 +164,54 @@ public sealed class App : Application, IAgentHost
         if (_tray != null)
             _tray.ToolTipText = raised ? "Classe_controle — main levée ✋" : "Classe_controle — Agent";
     });
+
+    // ---------- Séance ----------
+    public void ShowLogin(SessionStartPayload session, string suggestedName) => Dispatcher.UIThread.Post(() =>
+    {
+        if (_login == null)
+        {
+            _login = new LoginOverlay(session.Title, session.TeacherName, suggestedName);
+            _login.YieldTo = () => _lock != null;
+            _login.Submitted += name => _server?.SubmitLogin(name);
+            _login.Closed += (_, _) => _login = null;
+            _login.Show();
+        }
+        else _login.SetSession(session.Title, session.TeacherName);
+        RaiseTop();
+    });
+
+    public void LoginFailed(string message) => Dispatcher.UIThread.Post(() => _login?.ShowError(message));
+
+    public void HideLogin() => Dispatcher.UIThread.Post(() =>
+    {
+        try { _login?.ForceClose(); } catch { }
+        _login = null;
+        RaiseTop();
+    });
+
+    // ---------- Espace d'équipe ----------
+    public void OpenTeam(GroupOpenPayload group) => Dispatcher.UIThread.Post(() =>
+    {
+        _team ??= new TeamWindow(doc => _server?.SendGroupDoc(doc),
+                                 text => { if (_team != null) _server?.SendGroupChat(_team.GroupId, text); });
+        _team.Open(group);
+        _team.Show();
+        _team.Activate();
+        if (_teamItem != null) _teamItem.IsEnabled = true;
+        RaiseTop();
+    });
+
+    public void TeamDoc(GroupDocPayload doc) => Dispatcher.UIThread.Post(() => _team?.ReceiveDoc(doc));
+
+    public void TeamChat(GroupChatPayload message) => Dispatcher.UIThread.Post(() => _team?.ReceiveChat(message));
+
+    public void CloseTeam(string groupId) => Dispatcher.UIThread.Post(() =>
+    {
+        if (_team == null || (groupId.Length > 0 && _team.GroupId != groupId)) return;
+        _team.ForceClose();
+        _team = null;
+        if (_teamItem != null) _teamItem.IsEnabled = false;
+    });
+
+    public void TeamDisconnected() => Dispatcher.UIThread.Post(() => _team?.Disconnected());
 }

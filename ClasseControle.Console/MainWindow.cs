@@ -20,6 +20,7 @@ internal sealed class MainWindow : Window
         public required Button LockBtn;
         public required Image ThumbImg;
         public required Border HandBadge;
+        public required TextBlock UserLabel;
         public Avalonia.Media.Imaging.Bitmap? Thumb;
     }
 
@@ -37,6 +38,10 @@ internal sealed class MainWindow : Window
     private Button _broadcastBtn = null!;
     private readonly ScreenBroadcaster _broadcaster = new();
     private RestrictionsPayload _restrictions = new();
+    private readonly ConsoleSettings _settings = ConsoleSettings.Load();
+    private readonly GroupManager _groupMgr;
+    private SessionStartPayload? _lesson;
+    private Button _lessonBtn = null!;
     private static readonly IBrush HandBrush = new SolidColorBrush(Color.FromRgb(210, 153, 34));
 
     public MainWindow()
@@ -47,7 +52,15 @@ internal sealed class MainWindow : Window
         MinWidth = 820;
         MinHeight = 520;
 
+        _groupMgr = new GroupManager(() => _cards.Values.Select(c => c.Conn));
+        _roomCode.Text = _settings.RoomCode;
+        _teacherName.Text = _settings.TeacherName;
         Content = BuildLayout();
+        Closing += async (_, _) =>
+        {
+            SaveIdentity();
+            if (_broadcaster.IsRunning) await _broadcaster.StopAsync();
+        };
     }
 
     private Control BuildLayout()
@@ -75,9 +88,16 @@ internal sealed class MainWindow : Window
             Orientation = Orientation.Horizontal,
             Margin = new Thickness(0, 10, 0, 0),
         };
-        AddAction(actionBar, "🔒  Tout verrouiller", () => ApplyAsync("Verrouillage", c => c.Lock("Écran verrouillé par le professeur"), lockState: true));
+        _lessonBtn = AddAction(actionBar, "🎓  Démarrer la séance", ToggleLessonAsync);
+        AddAction(actionBar, "🔒  Tout verrouiller", () => ApplyAsync("Verrouillage", c => c.Lock(_settings.LockMessage, _settings.LockImage()), lockState: true));
         AddAction(actionBar, "🔓  Tout déverrouiller", () => ApplyAsync("Déverrouillage", c => c.Unlock(), lockState: false));
         _broadcastBtn = AddAction(actionBar, "📺  Diffuser mon écran", ToggleBroadcastAsync);
+        AddAction(actionBar, "🌐  Ouvrir un site…", OpenWebsiteAsync);
+        AddAction(actionBar, "👥  Équipes…", () =>
+        {
+            new GroupsWindow(_groupMgr, () => _cards.Values.Where(c => c.Conn.IsConnected).Select(c => c.Conn).ToList(), _settings).Show(this);
+            return Task.CompletedTask;
+        });
         AddAction(actionBar, "⛔  Restrictions…", EditRestrictionsAsync);
         AddAction(actionBar, "💬  Message à la classe", SendMessageAsync);
         AddAction(actionBar, "📁  Envoyer un fichier…", SendFileAsync);
@@ -88,6 +108,12 @@ internal sealed class MainWindow : Window
         AddAction(actionBar, "🚪  Déconnecter la session", () => PowerAsync("déconnecter la session de", c => c.Logoff()));
         AddAction(actionBar, "📋  Présence", () => { new AttendanceWindow(SessionContext).Show(this); return Task.CompletedTask; });
         AddAction(actionBar, "📜  Journal", () => { new JournalWindow().Show(this); return Task.CompletedTask; });
+        AddAction(actionBar, "⚙  Paramètres", async () =>
+        {
+            var dlg = new SettingsDialog(_settings);
+            await dlg.ShowDialog(this);
+            if (dlg.Saved) SetStatus("Paramètres enregistrés.");
+        });
 
         var selectBar = new StackPanel
         {
@@ -138,6 +164,7 @@ internal sealed class MainWindow : Window
         {
             string code = _roomCode.Text?.Trim() ?? "";
             string teacher = _teacherName.Text?.Trim() ?? "Professeur";
+            SaveIdentity();
             var replies = await Discovery.ScanAsync(code);
 
             int nouveaux = 0;
@@ -165,6 +192,9 @@ internal sealed class MainWindow : Window
                         }
                     });
                 conn.HandChanged += (c, raised) => Dispatcher.UIThread.Post(() => OnHandChanged(card, raised));
+                conn.StudentLogin += (c, l) => Dispatcher.UIThread.Post(async () => await OnStudentLoginAsync(card, l));
+                conn.GroupDocReceived += (c, d) => _ = _groupMgr.HandleDocAsync(c, d);
+                conn.GroupChatReceived += (c, m) => _ = _groupMgr.HandleChatAsync(c, m);
                 if (ok)
                 {
                     nouveaux++;
@@ -181,7 +211,7 @@ internal sealed class MainWindow : Window
     private Card CreateCard(AgentConnection conn)
     {
         var name = new TextBlock { Text = conn.Info.MachineName, FontWeight = FontWeight.Bold, FontSize = 15 };
-        var user = new TextBlock { Text = "👤 " + conn.Info.UserName, Foreground = new SolidColorBrush(Color.FromRgb(139, 148, 158)), FontSize = 12 };
+        var user = new TextBlock { Text = "👤 " + conn.DisplayName, Foreground = new SolidColorBrush(Color.FromRgb(139, 148, 158)), FontSize = 12 };
         var ip = new TextBlock { Text = conn.Info.IpAddress, Foreground = new SolidColorBrush(Color.FromRgb(110, 118, 129)), FontSize = 11 };
         var status = new TextBlock { Text = "Connexion…", FontSize = 12, Margin = new Thickness(0, 4, 0, 0) };
         var select = new CheckBox { Content = "Sélectionner" };
@@ -233,7 +263,7 @@ internal sealed class MainWindow : Window
             ActionLog.Add("Vue de l'écran", conn.Info.MachineName);
         };
         var lockBtn = SmallButton("🔒 Verrouiller");
-        var card = new Card { Conn = conn, Border = null!, Select = select, Status = status, LockBtn = lockBtn, ThumbImg = thumb, HandBadge = handBadge };
+        var card = new Card { Conn = conn, Border = null!, Select = select, Status = status, LockBtn = lockBtn, ThumbImg = thumb, HandBadge = handBadge, UserLabel = user };
 
         // Mise à jour de la miniature à chaque image reçue.
         conn.FrameReceived += f => Dispatcher.UIThread.Post(() =>
@@ -252,15 +282,18 @@ internal sealed class MainWindow : Window
         {
             if (!conn.IsConnected) return;
             if (conn.IsLocked) { await conn.Unlock(); conn.IsLocked = false; }
-            else { await conn.Lock("Écran verrouillé par le professeur"); conn.IsLocked = true; }
+            else { await conn.Lock(_settings.LockMessage, _settings.LockImage()); conn.IsLocked = true; }
             ActionLog.Add(conn.IsLocked ? "Verrouillage" : "Déverrouillage", conn.Info.MachineName);
             lockBtn.Content = conn.IsLocked ? "🔓 Déverrouiller" : "🔒 Verrouiller";
         };
         var msgBtn = SmallButton("💬 Message");
         msgBtn.Click += async (_, _) => await MessageOneAsync(conn);
 
+        var relayBtn = SmallButton("📡 Diffuser à la classe");
+        relayBtn.Click += async (_, _) => await RelayStudentAsync(conn);
+
         var buttons = new StackPanel { Spacing = 6, Margin = new Thickness(0, 10, 0, 0),
-            Children = { view, new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6, Children = { lockBtn, msgBtn } } } };
+            Children = { view, new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6, Children = { lockBtn, msgBtn } }, relayBtn } };
 
         var panel = new StackPanel { Children = { name, user, ip, status, handBadge, thumbBorder, select, buttons } };
         var border = new Border
@@ -302,6 +335,136 @@ internal sealed class MainWindow : Window
             try { await c.SetRestrictions(_restrictions); } catch { }
         if (_broadcaster.IsRunning)
             try { await _broadcaster.AddAsync(c); } catch { }
+        if (_lesson != null)
+            try { await c.StartLesson(_lesson); } catch { }
+        try { await _groupMgr.OnConnectedAsync(c); } catch { }
+    }
+
+    private void SaveIdentity()
+    {
+        _settings.RoomCode = _roomCode.Text?.Trim() is { Length: > 0 } r ? r : "CLASSE";
+        _settings.TeacherName = _teacherName.Text?.Trim() is { Length: > 0 } t ? t : "Professeur";
+        _settings.Save();
+    }
+
+    // ---------- Séance ----------
+    private async Task ToggleLessonAsync()
+    {
+        var targets = _cards.Values.Where(c => c.Conn.IsConnected).Select(c => c.Conn).ToList();
+        if (_lesson != null)
+        {
+            var confirm = new ConfirmDialog("Terminer la séance", "Terminer la séance ? Les élèves n'auront plus à s'identifier.");
+            await confirm.ShowDialog(this);
+            if (!confirm.Confirmed) return;
+            foreach (var c in targets) { try { await c.EndLesson(); } catch { } }
+            ActionLog.Add("Fin de séance", _lesson.Title, $"{Attendance.Rows.Count(r => r.StudentName.Length > 0)} élève(s) identifié(s)");
+            _lesson = null;
+            _lessonBtn.Content = "🎓  Démarrer la séance";
+            _lessonBtn.ClearValue(BackgroundProperty);
+            SetStatus("Séance terminée.");
+            return;
+        }
+
+        var dlg = new InputDialog("Démarrer la séance",
+            "Titre de la séance. Chaque élève devra saisir son nom pour accéder à son poste :",
+            "ex : Bureautique — TP Excel", _settings.LessonTitle);
+        await dlg.ShowDialog(this);
+        if (string.IsNullOrWhiteSpace(dlg.Result)) return;
+        _settings.LessonTitle = dlg.Result.Trim();
+        _settings.Save();
+
+        _lesson = new SessionStartPayload
+        {
+            SessionId = Guid.NewGuid().ToString("N"),
+            Title = _settings.LessonTitle,
+            TeacherName = _teacherName.Text?.Trim() ?? "",
+        };
+        foreach (var card in _cards.Values)
+        {
+            card.Conn.StudentName = "";
+            card.UserLabel.Text = "👤 " + card.Conn.DisplayName;
+        }
+        foreach (var c in targets) { try { await c.StartLesson(_lesson); } catch { } }
+        _lessonBtn.Content = "🏁  Terminer la séance";
+        _lessonBtn.Background = new SolidColorBrush(Color.FromRgb(21, 128, 61));
+        ActionLog.Add("Début de séance", ActionLog.Describe(targets, true), _lesson.Title);
+        SetStatus($"🎓 Séance « {_lesson.Title} » démarrée : les élèves s'identifient…");
+    }
+
+    private async Task OnStudentLoginAsync(Card card, StudentLoginPayload l)
+    {
+        var c = card.Conn;
+        string name = (l.FullName ?? "").Trim();
+        if (_lesson == null || l.SessionId != _lesson.SessionId)
+        {
+            await c.AckLogin(false, "Aucune séance en cours. Patientez.");
+            return;
+        }
+        if (name.Length < 3 || name.Length > 80)
+        {
+            await c.AckLogin(false, "Nom invalide : saisissez votre prénom et votre nom.");
+            return;
+        }
+        // Même nom déjà connecté sur un autre poste : on refuse (usurpation ou double connexion).
+        var dup = _cards.Values.FirstOrDefault(o => o.Conn != c && o.Conn.IsConnected &&
+            string.Equals(o.Conn.StudentName, name, StringComparison.OrdinalIgnoreCase));
+        if (dup != null)
+        {
+            await c.AckLogin(false, $"« {name} » est déjà connecté sur {dup.Conn.Info.MachineName}. Prévenez le professeur.");
+            ActionLog.Add("Identification refusée", c.Info.MachineName, $"{name} déjà sur {dup.Conn.Info.MachineName}");
+            return;
+        }
+
+        c.StudentName = name;
+        card.UserLabel.Text = "👤 " + name;
+        Attendance.SetStudentName(c, name);
+        await c.AckLogin(true, "");
+        ActionLog.Add("Élève identifié", c.Info.MachineName, name);
+        int logged = _cards.Values.Count(x => x.Conn.IsConnected && x.Conn.StudentName.Length > 0);
+        int total = _cards.Values.Count(x => x.Conn.IsConnected);
+        SetStatus($"🎓 {logged}/{total} élève(s) identifié(s).");
+    }
+
+    // ---------- Site web ----------
+    private async Task OpenWebsiteAsync()
+    {
+        var dlg = new InputDialog("Ouvrir un site web",
+            "Adresse du site à ouvrir sur les postes (navigateur par défaut de chaque poste) :",
+            "ex : ofppt.ma  ou  https://docs.google.com/…", "https://");
+        await dlg.ShowDialog(this);
+        string url = (dlg.Result ?? "").Trim();
+        if (url.Length == 0 || url == "https://") return;
+        if (!url.Contains("://")) url = "https://" + url;
+        if (!Uri.TryCreate(url, UriKind.Absolute, out var uri) || (uri.Scheme != "http" && uri.Scheme != "https"))
+        {
+            SetStatus("Adresse invalide : " + url);
+            return;
+        }
+        await ApplyAsync("Ouverture de site", c => c.LaunchApp(uri.AbsoluteUri, ""), details: uri.AbsoluteUri);
+    }
+
+    // ---------- Diffusion de l'écran d'un élève ----------
+    private async Task RelayStudentAsync(AgentConnection source)
+    {
+        if (!source.IsConnected) return;
+        if (_broadcaster.IsRunning)
+        {
+            SetStatus("Une diffusion est déjà en cours : arrêtez-la d'abord.");
+            return;
+        }
+        var targets = _cards.Values.Where(c => c.Conn.IsConnected && c.Conn != source).Select(c => c.Conn).ToList();
+        if (targets.Count == 0) { SetStatus("Aucun autre poste connecté."); return; }
+
+        var dlg = new BroadcastDialog(targets.Count, $"L'écran de {source.DisplayName} ({source.Info.MachineName})");
+        await dlg.ShowDialog(this);
+        if (dlg.Result is not { } options) return;
+        options.Title = $"Écran de {source.DisplayName}";
+
+        await _broadcaster.StartRelayAsync(source, targets, options);
+        _broadcastBtn.Content = "⏹  Arrêter la diffusion";
+        _broadcastBtn.Background = new SolidColorBrush(Color.FromRgb(185, 28, 28));
+        ActionLog.Add("Diffusion de l'écran d'un élève", $"{source.Info.MachineName} → {targets.Count} poste(s)", source.DisplayName);
+        SetStatus($"📡 L'écran de {source.DisplayName} est diffusé à {targets.Count} poste(s).");
     }
 
     private void OnHandChanged(Card card, bool raised)

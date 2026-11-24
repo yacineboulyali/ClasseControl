@@ -23,7 +23,7 @@ public static class Net
 
 public static class AgentInfo
 {
-    public const string Version = "1.2.0";
+    public const string Version = "1.3.0";
 }
 
 /// <summary>Types de messages échangés sur le canal de contrôle TCP.</summary>
@@ -48,9 +48,17 @@ public enum MessageType
     BroadcastStop = 62,   // fin de diffusion
     LowerHand = 65,       // le professeur baisse la main levée de l'élève
     SetRestrictions = 70, // liste d'applications / sites interdits
+    SessionStart = 80,    // début de séance : l'élève doit s'identifier
+    SessionEnd = 81,      // fin de séance
+    StudentLoginAck = 82, // réponse à l'identification de l'élève
+    GroupOpen = 90,       // ouvrir l'espace d'équipe (affectation à un groupe)
+    GroupDoc = 91,        // document partagé du groupe (dans les deux sens)
+    GroupChat = 92,       // message de discussion du groupe (dans les deux sens)
+    GroupClose = 93,      // fermer l'espace d'équipe
 
     // --- Élève -> Prof (suite) ---
     HandRaise = 110,      // l'élève lève / baisse la main
+    StudentLogin = 112,   // l'élève s'identifie (nom complet) pour la séance
 
     // --- Élève -> Prof ---
     HelloAck = 1,         // réponse à Hello (accepté/refusé)
@@ -96,6 +104,8 @@ public sealed class HelloAckPayload
     public string Reason { get; set; } = "";
     public string MachineName { get; set; } = "";
     public string UserName { get; set; } = "";
+    /// <summary>Nom saisi par l'élève en début de séance (vide sinon).</summary>
+    public string StudentName { get; set; } = "";
 }
 
 public sealed class ShowMessagePayload
@@ -108,6 +118,8 @@ public sealed class ShowMessagePayload
 public sealed class LockPayload
 {
     public string Message { get; set; } = "Écran verrouillé par le professeur";
+    /// <summary>Image de fond facultative (JPEG), choisie par le professeur.</summary>
+    public byte[]? ImageJpeg { get; set; }
 }
 
 public sealed class StartScreenPayload
@@ -194,4 +206,64 @@ public sealed class HandRaisePayload
 {
     public bool Raised { get; set; }
     public string Note { get; set; } = "";
+}
+
+/// <summary>Début de séance : chaque élève doit saisir son nom pour accéder au poste.</summary>
+public sealed class SessionStartPayload
+{
+    public string SessionId { get; set; } = "";
+    public string Title { get; set; } = "Séance";
+    public string TeacherName { get; set; } = "";
+}
+
+public sealed class StudentLoginPayload
+{
+    public string SessionId { get; set; } = "";
+    public string FullName { get; set; } = "";
+}
+
+public sealed class StudentLoginAckPayload
+{
+    public bool Accepted { get; set; }
+    public string Message { get; set; } = "";
+}
+
+/// <summary>Affectation à un groupe de travail avec son espace partagé.</summary>
+public sealed class GroupOpenPayload
+{
+    public string GroupId { get; set; } = "";
+    public string GroupName { get; set; } = "";
+    public List<string> Members { get; set; } = new();
+    public string Text { get; set; } = "";
+    public int Revision { get; set; }
+    public List<GroupChatPayload> History { get; set; } = new();
+}
+
+/// <summary>
+/// Document partagé du groupe.
+/// Élève → prof : nouveau texte complet calculé sur <see cref="Revision"/> (révision de base),
+///                numéroté par <see cref="Seq"/>.
+/// Prof → élève : texte fusionné faisant foi à la révision <see cref="Revision"/> ;
+///                <see cref="AckSeq"/> &gt; 0 seulement pour l'auteur de la modification.
+/// </summary>
+public sealed class GroupDocPayload
+{
+    public string GroupId { get; set; } = "";
+    public string Text { get; set; } = "";
+    public int Revision { get; set; }
+    public int Seq { get; set; }
+    public int AckSeq { get; set; }
+}
+
+public sealed class GroupChatPayload
+{
+    public string GroupId { get; set; } = "";
+    public string Author { get; set; } = "";
+    public string Text { get; set; } = "";
+    public DateTime Time { get; set; }
+}
+
+public sealed class GroupClosePayload
+{
+    public string GroupId { get; set; } = "";
 }

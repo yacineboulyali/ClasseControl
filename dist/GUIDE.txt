@@ -1,5 +1,5 @@
 ╔══════════════════════════════════════════════════════════════════╗
-║   CLASSE_CONTROLE — Supervision de salle informatique (v1.2)       ║
+║   CLASSE_CONTROLE — Supervision de salle informatique (v1.3)       ║
 ║   Équivalent libre et original de type "NetSupport School"         ║
 ╚══════════════════════════════════════════════════════════════════╝
 
@@ -10,6 +10,18 @@ Deux programmes, AUCUNE installation requise (un seul .exe chacun) :
 
 Tous les postes doivent être sur le MÊME réseau local (même Wi-Fi / même
 switch / même sous-réseau).
+
+────────────────────────────────────────────────────────────────────
+0) INSTALLATION AVEC L'INSTALLATEUR (recommandé)
+────────────────────────────────────────────────────────────────────
+  Lancez « ClasseControle-Setup-1.3.0.exe » en administrateur, puis
+  choisissez le type de poste :
+    • Poste du PROFESSEUR → installe la console (menu Démarrer + Bureau).
+    • Poste ÉLÈVE → installe seulement l'agent : aucun raccourci, il
+      démarre tout seul à chaque session et n'apparaît que près de
+      l'horloge. Saisissez le code de salle demandé.
+  Le pare-feu est configuré automatiquement.
+  Sans installateur, suivez les étapes 1) et 2) ci-dessous.
 
 ────────────────────────────────────────────────────────────────────
 1) SUR CHAQUE POSTE ÉLÈVE
@@ -56,6 +68,19 @@ switch / même sous-réseau).
      ✖  Fermer une application (par nom de processus, ex : chrome)
      ⏻  Éteindre   /   ↻ Redémarrer   /   🚪 Déconnecter la session
         (une confirmation est demandée)
+     🎓 Démarrer la séance → chaque élève doit saisir son prénom et
+        son nom pour accéder à son poste. Les noms s'affichent sur
+        les cartes, dans la présence et les équipes.
+        « 🏁 Terminer la séance » supprime l'obligation.
+     🌐 Ouvrir un site… → ouvre l'adresse dans le navigateur de
+        chaque poste.
+     👥 Équipes… → indiquez le nombre d'élèves par équipe puis
+        « 🎲 Répartir aléatoirement », ou choisissez l'équipe de
+        chaque élève à la main. « 🚀 Ouvrir les espaces d'équipe » :
+        chaque équipe reçoit un document partagé (tous écrivent en
+        même temps) et une discussion. Vous suivez tout en direct,
+        pouvez écrire à une équipe, et « 💾 Exporter les travaux ».
+     ⚙ Paramètres → texte et image de l'écran de verrouillage.
      📺 Diffuser mon écran → votre écran s'affiche chez les élèves.
         Option « plein écran » : clavier/souris élèves bloqués.
         Recliquez (« ⏹ Arrêter la diffusion ») pour rendre la main.
@@ -77,6 +102,8 @@ switch / même sous-réseau).
                             cochez « Prendre le contrôle » pour piloter
                             sa souris et son clavier.
      🔒 Verrouiller / 💬 Message → pour ce poste uniquement.
+     📡 Diffuser à la classe → l'écran de CET élève s'affiche sur
+                            tous les autres postes.
 
   Sélection : « Tout sélectionner / désélectionner » en haut, ou cochez
   « Sélectionner » sur certaines cartes. Si au moins une carte est cochée,
@@ -108,4 +135,4 @@ switch / même sous-réseau).
   • Outil destiné à un usage pédagogique encadré, sur des postes dont
     vous avez la responsabilité. Informez les utilisateurs.
 
-Bon cours !  —  Classe_controle v1.2
+Bon cours !  —  Classe_controle v1.3

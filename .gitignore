@@ -11,3 +11,6 @@ dist/*.exe
 # Divers
 .vs/
 *.log
+
+# Icône générée par installer/build.ps1
+ClasseControle.Console/app-icon.ico

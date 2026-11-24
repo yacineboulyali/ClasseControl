@@ -57,7 +57,7 @@ internal sealed class BroadcastDialog : Window
 {
     public BroadcastStartPayload? Result { get; private set; }
 
-    public BroadcastDialog(int targetCount)
+    public BroadcastDialog(int targetCount, string what = "Votre écran")
     {
         Title = "Diffuser mon écran";
         Width = 460;
@@ -71,7 +71,7 @@ internal sealed class BroadcastDialog : Window
             Margin = new Thickness(20),
             Children =
             {
-                new TextBlock { Text = $"Votre écran va être affiché sur {targetCount} poste(s).", TextWrapping = TextWrapping.Wrap },
+                new TextBlock { Text = $"{what} va être affiché sur {targetCount} poste(s).", TextWrapping = TextWrapping.Wrap },
                 new Border { Height = 12 },
                 exclusive,
                 Ui.Hint("Décoché : l'écran s'ouvre dans une fenêtre que l'élève peut déplacer, pour suivre en parallèle."),
@@ -219,7 +219,7 @@ internal sealed class JournalWindow : Window
 /// <summary>Liste de présence de la séance, exportable en CSV.</summary>
 internal sealed class AttendanceWindow : Window
 {
-    private static readonly string[] Headers = { "Poste", "Utilisateur", "Adresse IP", "Arrivée", "Départ", "Statut", "✋" };
+    private static readonly string[] Headers = { "Élève", "Poste", "Utilisateur", "Adresse IP", "Arrivée", "Départ", "Statut", "✋" };
     private readonly Grid _table = new() { Margin = new Thickness(16, 8, 16, 8) };
     private readonly TextBlock _summary = new() { Margin = new Thickness(16, 14, 16, 0), FontWeight = FontWeight.SemiBold };
     private readonly Func<(string teacher, string room)> _context;
@@ -265,7 +265,7 @@ internal sealed class AttendanceWindow : Window
 
         _table.Children.Clear();
         _table.RowDefinitions.Clear();
-        _table.ColumnDefinitions = new ColumnDefinitions("2*,2*,1.5*,*,*,1.3*,0.5*");
+        _table.ColumnDefinitions = new ColumnDefinitions("2.2*,1.6*,1.5*,1.4*,*,*,1.3*,0.5*");
 
         _table.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
         for (int c = 0; c < Headers.Length; c++)
@@ -275,13 +275,14 @@ internal sealed class AttendanceWindow : Window
         foreach (var r in rows)
         {
             _table.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
-            Cell(r.Machine, i, 0);
-            Cell(r.User, i, 1);
-            Cell(r.Ip, i, 2);
-            Cell(r.FirstText, i, 3);
-            Cell(r.Present ? "—" : r.LeftText, i, 4);
-            Cell(r.StatusText, i, 5);
-            Cell(r.Hands > 0 ? r.Hands.ToString() : "", i, 6);
+            Cell(r.StudentName.Length > 0 ? r.StudentName : "—", i, 0);
+            Cell(r.Machine, i, 1);
+            Cell(r.User, i, 2);
+            Cell(r.Ip, i, 3);
+            Cell(r.FirstText, i, 4);
+            Cell(r.Present ? "—" : r.LeftText, i, 5);
+            Cell(r.StatusText, i, 6);
+            Cell(r.Hands > 0 ? r.Hands.ToString() : "", i, 7);
             i++;
         }
         if (rows.Count == 0)
