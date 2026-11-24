@@ -26,14 +26,17 @@ ClasseControle.Console   Poste prof   (Avalonia)
 - **Écran** : capture GDI `BitBlt` → JPEG, streaming à quelques images/seconde.
 - **Contrôle à distance** : `SendInput` (souris/clavier), coordonnées normalisées.
 
-## Fonctionnalités v1
+## Fonctionnalités
 
+- 🖥️ **Miniatures de tous les écrans en direct** dans la console
 - 🔒 Verrouiller / déverrouiller un poste ou toute la classe
 - 💬 Message / consigne à un poste ou à la classe
-- 👁 Voir l'écran d'un élève en direct **+ prise de contrôle** souris/clavier
+- 👁 Voir l'écran d'un élève en grand **+ prise de contrôle** souris/clavier
 - 📁 Envoyer un fichier (toute la classe ou sélection)
 - 🚀 Lancer une application ou une URL à distance
 - ✖ Fermer une application à distance (par nom de processus)
+- ⏻ **Éteindre / redémarrer / déconnecter** les postes à distance (avec confirmation)
+- ☑️ Sélection groupée (tout / rien / par poste)
 
 ## Compilation
 

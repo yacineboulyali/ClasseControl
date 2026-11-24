@@ -88,9 +88,50 @@ internal sealed class AgentConnection : IDisposable
     public Task Unlock() => Send(MessageType.Unlock, new { });
     public Task ShowMessage(string title, string text, int seconds) =>
         Send(MessageType.ShowMessage, new ShowMessagePayload { Title = title, Text = text, DurationSeconds = seconds });
-    public Task StartScreen(StartScreenPayload p) => Send(MessageType.StartScreen, p);
-    public Task StopScreen() => Send(MessageType.StopScreen, new { });
     public Task SendInput(RemoteInputPayload p) => Send(MessageType.RemoteInput, p);
+    public Task Shutdown(int delay, string msg) => Send(MessageType.Shutdown, new PowerPayload { DelaySeconds = delay, Message = msg });
+    public Task Restart(int delay, string msg) => Send(MessageType.Restart, new PowerPayload { DelaySeconds = delay, Message = msg });
+    public Task Logoff() => Send(MessageType.Logoff, new PowerPayload());
+
+    // ---------- Arbitrage du flux d'écran ----------
+    // Plusieurs consommateurs (miniature + fenêtre de contrôle) partagent une
+    // seule connexion : on envoie StartScreen avec le profil le plus exigeant,
+    // et StopScreen seulement quand plus personne ne regarde.
+    private readonly object _streamLock = new();
+    private readonly Dictionary<string, StartScreenPayload> _streamReqs = new();
+
+    public Task AcquireStream(string consumerKey, StartScreenPayload profile)
+    {
+        lock (_streamLock) _streamReqs[consumerKey] = profile;
+        return ApplyStreamProfile();
+    }
+
+    public Task ReleaseStream(string consumerKey)
+    {
+        lock (_streamLock) _streamReqs.Remove(consumerKey);
+        return ApplyStreamProfile();
+    }
+
+    private Task ApplyStreamProfile()
+    {
+        StartScreenPayload? combined = null;
+        lock (_streamLock)
+        {
+            if (_streamReqs.Count > 0)
+            {
+                combined = new StartScreenPayload
+                {
+                    MaxWidth = _streamReqs.Values.Max(p => p.MaxWidth),
+                    Quality = _streamReqs.Values.Max(p => p.Quality),
+                    Fps = _streamReqs.Values.Max(p => p.Fps),
+                    AllowControl = _streamReqs.Values.Any(p => p.AllowControl),
+                };
+            }
+        }
+        return combined != null
+            ? Send(MessageType.StartScreen, combined)
+            : Send(MessageType.StopScreen, new { });
+    }
     public Task LaunchApp(string path, string args) =>
         Send(MessageType.LaunchApp, new LaunchAppPayload { Path = path, Arguments = args });
     public Task CloseApp(string proc) => Send(MessageType.CloseApp, new CloseAppPayload { ProcessName = proc });

@@ -189,6 +189,18 @@ internal sealed class AgentServer
                         var ca = Wire.Read<CloseAppPayload>(env);
                         if (ca != null) CloseApp(ca);
                         break;
+
+                    case MessageType.Shutdown:
+                        Power("/s", Wire.Read<PowerPayload>(env));
+                        break;
+
+                    case MessageType.Restart:
+                        Power("/r", Wire.Read<PowerPayload>(env));
+                        break;
+
+                    case MessageType.Logoff:
+                        Power("/l", Wire.Read<PowerPayload>(env));
+                        break;
                 }
             }
         }
@@ -261,6 +273,25 @@ internal sealed class AgentServer
                 UseShellExecute = true, // permet aussi d'ouvrir une URL
             };
             System.Diagnostics.Process.Start(psi);
+        }
+        catch { }
+    }
+
+    private static void Power(string flag, PowerPayload? p)
+    {
+        try
+        {
+            p ??= new PowerPayload();
+            // /l (déconnexion) n'accepte ni /t ni /c
+            string args = flag == "/l"
+                ? "/l"
+                : $"{flag} /t {Math.Clamp(p.DelaySeconds, 0, 600)} /f" +
+                  (string.IsNullOrWhiteSpace(p.Message) ? "" : $" /c \"{p.Message.Replace("\"", "'")}\"");
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("shutdown.exe", args)
+            {
+                UseShellExecute = false,
+                CreateNoWindow = true,
+            });
         }
         catch { }
     }

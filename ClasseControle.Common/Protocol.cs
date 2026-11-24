@@ -35,6 +35,9 @@ public enum MessageType
     FilePush = 30,        // envoyer un fichier à l'élève
     LaunchApp = 40,       // lancer une application / ouvrir une URL
     CloseApp = 41,        // fermer une application par nom de processus
+    Shutdown = 50,        // éteindre le poste
+    Restart = 51,         // redémarrer le poste
+    Logoff = 52,          // fermer la session Windows
 
     // --- Élève -> Prof ---
     HelloAck = 1,         // réponse à Hello (accepté/refusé)
@@ -144,5 +147,11 @@ public sealed class CloseAppPayload
 
 public sealed class ErrorPayload
 {
+    public string Message { get; set; } = "";
+}
+
+public sealed class PowerPayload
+{
+    public int DelaySeconds { get; set; } = 5;
     public string Message { get; set; } = "";
 }

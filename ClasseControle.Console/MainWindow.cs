@@ -18,13 +18,20 @@ internal sealed class MainWindow : Window
         public required CheckBox Select;
         public required TextBlock Status;
         public required Button LockBtn;
+        public required Image ThumbImg;
+        public Avalonia.Media.Imaging.Bitmap? Thumb;
     }
+
+    // Profil des miniatures live (basse résolution pour tenir plusieurs postes).
+    private static readonly StartScreenPayload ThumbProfile =
+        new() { MaxWidth = 320, Quality = 35, Fps = 2, AllowControl = false };
 
     private readonly TextBox _roomCode = new() { Text = "CLASSE", Width = 160 };
     private readonly TextBox _teacherName = new() { Text = "Professeur", Width = 180 };
     private readonly WrapPanel _grid = new() { Margin = new Thickness(12) };
     private readonly TextBlock _status = new() { Text = "Prêt.", Margin = new Thickness(12, 6, 12, 6) };
     private readonly Dictionary<string, Card> _cards = new();
+    private readonly CheckBox _thumbsToggle = new() { Content = "Miniatures en direct", IsChecked = true, VerticalAlignment = VerticalAlignment.Center };
     private Button _scanBtn = null!;
 
     public MainWindow()
@@ -69,11 +76,28 @@ internal sealed class MainWindow : Window
         AddAction(actionBar, "📁  Envoyer un fichier…", SendFileAsync);
         AddAction(actionBar, "🚀  Lancer une app…", LaunchAppAsync);
         AddAction(actionBar, "✖  Fermer une app…", CloseAppAsync);
+        AddAction(actionBar, "⏻  Éteindre", () => PowerAsync("éteindre", c => c.Shutdown(10, "Arrêt demandé par le professeur")));
+        AddAction(actionBar, "↻  Redémarrer", () => PowerAsync("redémarrer", c => c.Restart(10, "Redémarrage demandé par le professeur")));
+        AddAction(actionBar, "🚪  Déconnecter la session", () => PowerAsync("déconnecter la session de", c => c.Logoff()));
+
+        var selectBar = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Spacing = 10,
+            Margin = new Thickness(0, 6, 0, 0),
+            Children =
+            {
+                _thumbsToggle,
+                MakeLink("Tout sélectionner", () => SetAllSelected(true)),
+                MakeLink("Tout désélectionner", () => SetAllSelected(false)),
+            },
+        };
+        _thumbsToggle.IsCheckedChanged += async (_, _) => await ToggleThumbnails();
 
         var header = new StackPanel
         {
             Margin = new Thickness(16, 14, 16, 0),
-            Children = { connBar, actionBar },
+            Children = { connBar, actionBar, selectBar },
         };
 
         var scroller = new ScrollViewer { Content = _grid, VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
@@ -121,8 +145,18 @@ internal sealed class MainWindow : Window
                 var (ok, reason) = await conn.ConnectAsync(code, teacher);
                 UpdateCardStatus(card, ok ? "Connecté" : $"Échec : {reason}", ok);
                 conn.ConnectionChanged += (c, up) =>
-                    Dispatcher.UIThread.Post(() => UpdateCardStatus(card, up ? "Connecté" : "Déconnecté", up));
-                if (ok) nouveaux++;
+                    Dispatcher.UIThread.Post(async () =>
+                    {
+                        UpdateCardStatus(card, up ? "Connecté" : "Déconnecté", up);
+                        if (up && _thumbsToggle.IsChecked == true)
+                            try { await c.AcquireStream("thumb", ThumbProfile); } catch { }
+                    });
+                if (ok)
+                {
+                    nouveaux++;
+                    if (_thumbsToggle.IsChecked == true)
+                        try { await conn.AcquireStream("thumb", ThumbProfile); } catch { }
+                }
             }
             SetStatus($"{replies.Count} poste(s) trouvé(s), {_cards.Count(c => c.Value.Conn.IsConnected)} connecté(s).");
         }
@@ -138,10 +172,39 @@ internal sealed class MainWindow : Window
         var status = new TextBlock { Text = "Connexion…", FontSize = 12, Margin = new Thickness(0, 4, 0, 0) };
         var select = new CheckBox { Content = "Sélectionner" };
 
+        var thumb = new Image
+        {
+            Stretch = Stretch.Uniform,
+            Height = 124,
+            Margin = new Thickness(0, 8, 0, 0),
+        };
+        var thumbBorder = new Border
+        {
+            Height = 124,
+            Margin = new Thickness(0, 8, 0, 0),
+            Background = new SolidColorBrush(Color.FromRgb(13, 17, 23)),
+            CornerRadius = new CornerRadius(6),
+            Child = thumb,
+        };
+
         var view = SmallButton("👁 Voir / Contrôler");
         view.Click += (_, _) => { if (conn.IsConnected) new RemoteViewWindow(conn).Show(); };
         var lockBtn = SmallButton("🔒 Verrouiller");
-        var card = new Card { Conn = conn, Border = null!, Select = select, Status = status, LockBtn = lockBtn };
+        var card = new Card { Conn = conn, Border = null!, Select = select, Status = status, LockBtn = lockBtn, ThumbImg = thumb };
+
+        // Mise à jour de la miniature à chaque image reçue.
+        conn.FrameReceived += f => Dispatcher.UIThread.Post(() =>
+        {
+            try
+            {
+                using var ms = new MemoryStream(f.Jpeg);
+                var bmp = new Avalonia.Media.Imaging.Bitmap(ms);
+                thumb.Source = bmp;
+                card.Thumb?.Dispose();
+                card.Thumb = bmp;
+            }
+            catch { }
+        });
         lockBtn.Click += async (_, _) =>
         {
             if (!conn.IsConnected) return;
@@ -155,7 +218,7 @@ internal sealed class MainWindow : Window
         var buttons = new StackPanel { Spacing = 6, Margin = new Thickness(0, 10, 0, 0),
             Children = { view, new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6, Children = { lockBtn, msgBtn } } } };
 
-        var panel = new StackPanel { Children = { name, user, ip, status, select, buttons } };
+        var panel = new StackPanel { Children = { name, user, ip, status, thumbBorder, select, buttons } };
         var border = new Border
         {
             Width = 240,
@@ -261,7 +324,55 @@ internal sealed class MainWindow : Window
         await ApplyAsync(c => c.CloseApp(dlg.Result!.Trim()));
     }
 
+    private async Task PowerAsync(string verbe, Func<AgentConnection, Task> action)
+    {
+        var targets = Targets().ToList();
+        if (targets.Count == 0) { SetStatus("Aucun poste connecté."); return; }
+
+        var confirm = new ConfirmDialog("Confirmation",
+            $"Voulez-vous vraiment {verbe} {targets.Count} poste(s) ?");
+        await confirm.ShowDialog(this);
+        if (!confirm.Confirmed) return;
+
+        foreach (var c in targets) { try { await action(c); } catch { } }
+        SetStatus($"Commande « {verbe} » envoyée à {targets.Count} poste(s).");
+    }
+
+    private void SetAllSelected(bool value)
+    {
+        foreach (var card in _cards.Values) card.Select.IsChecked = value;
+    }
+
+    private async Task ToggleThumbnails()
+    {
+        bool on = _thumbsToggle.IsChecked == true;
+        foreach (var card in _cards.Values.Where(c => c.Conn.IsConnected))
+        {
+            try
+            {
+                if (on) await card.Conn.AcquireStream("thumb", ThumbProfile);
+                else await card.Conn.ReleaseStream("thumb");
+            }
+            catch { }
+        }
+        SetStatus(on ? "Miniatures activées." : "Miniatures désactivées.");
+    }
+
     // ---------- Helpers UI ----------
+    private Button MakeLink(string text, Action onClick)
+    {
+        var b = new Button
+        {
+            Content = text,
+            Background = Brushes.Transparent,
+            Foreground = new SolidColorBrush(Color.FromRgb(88, 166, 255)),
+            Padding = new Thickness(4, 2, 4, 2),
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        b.Click += (_, _) => onClick();
+        return b;
+    }
+
     private void AddAction(Panel bar, string text, Func<Task> handler)
     {
         var b = SmallButton(text);

@@ -72,14 +72,14 @@ internal sealed class RemoteViewWindow : Window
         KeyDown += (_, e) => SendKey(e, down: true);
         KeyUp += (_, e) => SendKey(e, down: false);
 
-        Opened += async (_, _) => await _conn.StartScreen(new StartScreenPayload
+        Opened += async (_, _) => await _conn.AcquireStream("view", new StartScreenPayload
         {
-            Quality = 55, MaxWidth = 1600, Fps = 6, AllowControl = true,
+            Quality = 55, MaxWidth = 1600, Fps = 8, AllowControl = true,
         });
         Closed += async (_, _) =>
         {
             _conn.FrameReceived -= OnFrame;
-            try { await _conn.StopScreen(); } catch { }
+            try { await _conn.ReleaseStream("view"); } catch { }
             _current?.Dispose();
         };
     }

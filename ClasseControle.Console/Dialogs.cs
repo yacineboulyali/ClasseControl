@@ -44,6 +44,42 @@ internal sealed class InputDialog : Window
     }
 }
 
+/// <summary>Boîte de confirmation Oui/Non.</summary>
+internal sealed class ConfirmDialog : Window
+{
+    public bool Confirmed { get; private set; }
+
+    public ConfirmDialog(string title, string question)
+    {
+        Title = title;
+        Width = 420;
+        SizeToContent = SizeToContent.Height;
+        WindowStartupLocation = WindowStartupLocation.CenterOwner;
+        CanResize = false;
+
+        var yes = new Button { Content = "Oui", Padding = new Thickness(20, 6, 20, 6) };
+        var no = new Button { Content = "Annuler", Padding = new Thickness(16, 6, 16, 6) };
+        yes.Click += (_, _) => { Confirmed = true; Close(); };
+        no.Click += (_, _) => { Confirmed = false; Close(); };
+
+        Content = new StackPanel
+        {
+            Margin = new Thickness(20),
+            Children =
+            {
+                new TextBlock { Text = question, TextWrapping = TextWrapping.Wrap },
+                new StackPanel
+                {
+                    Orientation = Orientation.Horizontal,
+                    HorizontalAlignment = HorizontalAlignment.Right,
+                    Spacing = 8, Margin = new Thickness(0,16,0,0),
+                    Children = { no, yes },
+                },
+            },
+        };
+    }
+}
+
 /// <summary>Composition d'un message (titre + corps) à envoyer aux élèves.</summary>
 internal sealed class ComposeMessageDialog : Window
 {
