@@ -15,6 +15,8 @@ public sealed class App : Application, IAgentHost
     private TrayIcon? _tray;
     private NativeMenuItem? _statusItem;
     private LockOverlay? _lock;
+    private BroadcastWindow? _broadcast;
+    private NativeMenuItem? _handItem;
 
     public override void Initialize()
     {
@@ -45,8 +47,13 @@ public sealed class App : Application, IAgentHost
         var quit = new NativeMenuItem("Quitter l'agent");
         quit.Click += (_, _) => TryQuit();
 
+        _handItem = new NativeMenuItem("✋ Lever la main (demander de l'aide)");
+        _handItem.Click += (_, _) => _server?.SetHand(!(_server?.HandRaised ?? false));
+
         var menu = new NativeMenu();
         menu.Items.Add(_statusItem);
+        menu.Items.Add(new NativeMenuItemSeparator());
+        menu.Items.Add(_handItem);
         menu.Items.Add(new NativeMenuItemSeparator());
         menu.Items.Add(quit);
 
@@ -110,5 +117,36 @@ public sealed class App : Application, IAgentHost
     {
         if (_statusItem != null) _statusItem.Header = $"Classe_controle — {status}";
         if (_tray != null) _tray.ToolTipText = $"Classe_controle — {status}";
+    });
+
+    public void ShowBroadcast(string title, bool exclusive) => Dispatcher.UIThread.Post(() =>
+    {
+        if (_broadcast == null)
+        {
+            _broadcast = new BroadcastWindow(title, exclusive);
+            _broadcast.YieldTo = () => _lock != null;
+            _broadcast.Closed += (_, _) => _broadcast = null;
+            _broadcast.Show();
+        }
+        else _broadcast.SetMode(title, exclusive);
+        _broadcast.Activate();
+        // Le verrouillage reste prioritaire s'il est actif.
+        _lock?.Activate();
+    });
+
+    public void ShowBroadcastFrame(byte[] jpeg) => Dispatcher.UIThread.Post(() => _broadcast?.ShowFrame(jpeg));
+
+    public void HideBroadcast() => Dispatcher.UIThread.Post(() =>
+    {
+        try { _broadcast?.ForceClose(); } catch { }
+        _broadcast = null;
+    });
+
+    public void SetHandRaised(bool raised) => Dispatcher.UIThread.Post(() =>
+    {
+        if (_handItem != null)
+            _handItem.Header = raised ? "✋ Baisser la main" : "✋ Lever la main (demander de l'aide)";
+        if (_tray != null)
+            _tray.ToolTipText = raised ? "Classe_controle — main levée ✋" : "Classe_controle — Agent";
     });
 }

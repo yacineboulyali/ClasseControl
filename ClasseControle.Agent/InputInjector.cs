@@ -99,6 +99,13 @@ internal static class InputInjector
         });
     }
 
+    /// <summary>Envoie un raccourci clavier (ex : Ctrl+W) : appui puis relâche dans l'ordre inverse.</summary>
+    public static void Chord(params ushort[] vks)
+    {
+        foreach (var vk in vks) Key(vk, down: true);
+        for (int i = vks.Length - 1; i >= 0; i--) Key(vks[i], down: false);
+    }
+
     private static void Send(Native.INPUT input)
     {
         var arr = new[] { input };

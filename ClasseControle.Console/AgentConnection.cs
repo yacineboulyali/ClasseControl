@@ -18,6 +18,7 @@ internal sealed class AgentConnection : IDisposable
     public bool IsConnected { get; private set; }
     public bool IsLocked { get; set; }
     public bool Selected { get; set; }
+    public bool IsHandRaised { get; private set; }
 
     public string Key => $"{Info.IpAddress}:{Info.ControlPort}";
     public string Title => $"{Info.MachineName}  ({Info.UserName})";
@@ -26,6 +27,8 @@ internal sealed class AgentConnection : IDisposable
     public event Action<ScreenFramePayload>? FrameReceived;
     /// <summary>Déclenché quand l'état de connexion change (bool connecté).</summary>
     public event Action<AgentConnection, bool>? ConnectionChanged;
+    /// <summary>Déclenché quand l'élève lève ou baisse la main.</summary>
+    public event Action<AgentConnection, bool>? HandChanged;
 
     public AgentConnection(DiscoveryReply info) => Info = info;
 
@@ -74,12 +77,22 @@ internal sealed class AgentConnection : IDisposable
                     var f = Wire.Read<ScreenFramePayload>(env);
                     if (f != null) FrameReceived?.Invoke(f);
                 }
+                else if (env.Type == MessageType.HandRaise)
+                {
+                    var h = Wire.Read<HandRaisePayload>(env);
+                    if (h != null && h.Raised != IsHandRaised)
+                    {
+                        IsHandRaised = h.Raised;
+                        HandChanged?.Invoke(this, h.Raised);
+                    }
+                }
             }
         }
         catch { }
         finally
         {
             IsConnected = false;
+            if (IsHandRaised) { IsHandRaised = false; HandChanged?.Invoke(this, false); }
             ConnectionChanged?.Invoke(this, false);
         }
     }
@@ -137,6 +150,24 @@ internal sealed class AgentConnection : IDisposable
     public Task CloseApp(string proc) => Send(MessageType.CloseApp, new CloseAppPayload { ProcessName = proc });
     public Task PushFile(string name, byte[] content, bool open) =>
         Send(MessageType.FilePush, new FilePushPayload { FileName = name, Content = content, OpenAfter = open });
+
+    public Task LowerHand() => Send(MessageType.LowerHand, new { });
+    public Task SetRestrictions(RestrictionsPayload p) => Send(MessageType.SetRestrictions, p);
+    public Task StartBroadcast(BroadcastStartPayload p) => Send(MessageType.BroadcastStart, p);
+    public Task StopBroadcast() => Send(MessageType.BroadcastStop, new { });
+
+    // Une image de diffusion n'est envoyée que si la précédente est partie :
+    // un poste lent ne ralentit pas les autres, il saute simplement des images.
+    private int _broadcastBusy;
+    public void TrySendBroadcastFrame(ScreenFramePayload frame)
+    {
+        if (!IsConnected || Interlocked.CompareExchange(ref _broadcastBusy, 1, 0) != 0) return;
+        _ = Task.Run(async () =>
+        {
+            try { await Send(MessageType.BroadcastFrame, frame); }
+            finally { Interlocked.Exchange(ref _broadcastBusy, 0); }
+        });
+    }
 
     private async Task Send<T>(MessageType type, T payload)
     {

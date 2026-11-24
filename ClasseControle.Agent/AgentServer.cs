@@ -14,6 +14,11 @@ internal interface IAgentHost
     void HideLock();
     void ShowMessage(string title, string text, int durationSeconds);
     void SetStatus(string status);
+    void ShowBroadcast(string title, bool exclusive);
+    void ShowBroadcastFrame(byte[] jpeg);
+    void HideBroadcast();
+    /// <summary>État de la main levée changé (par l'élève ou baissée par le prof).</summary>
+    void SetHandRaised(bool raised);
 }
 
 /// <summary>
@@ -29,11 +34,38 @@ internal sealed class AgentServer
     private readonly IAgentHost _host;
     private readonly CancellationTokenSource _cts = new();
     private readonly ScreenCapture _capture = new();
+    private readonly RestrictionEnforcer _restrictions;
+
+    /// <summary>Une connexion professeur active (pour pousser des événements élève → prof).</summary>
+    private sealed record Session(NetworkStream Stream, SemaphoreSlim WriteLock, CancellationToken Ct);
+    private readonly List<Session> _sessions = new();
+    private volatile bool _handRaised;
 
     public AgentServer(AgentSettings settings, IAgentHost host)
     {
         _settings = settings;
         _host = host;
+        _restrictions = new RestrictionEnforcer(host);
+    }
+
+    public bool HandRaised => _handRaised;
+
+    /// <summary>L'élève lève ou baisse la main : notifie toutes les consoles connectées.</summary>
+    public void SetHand(bool raised)
+    {
+        _handRaised = raised;
+        _host.SetHandRaised(raised);
+        _ = PushToAll(MessageType.HandRaise, new HandRaisePayload { Raised = raised });
+    }
+
+    private async Task PushToAll<T>(MessageType type, T payload)
+    {
+        Session[] targets;
+        lock (_sessions) targets = _sessions.ToArray();
+        foreach (var s in targets)
+        {
+            try { await SendLocked(s.Stream, s.WriteLock, type, payload, s.Ct); } catch { }
+        }
     }
 
     public void Start()
@@ -42,7 +74,11 @@ internal sealed class AgentServer
         _ = Task.Run(() => ControlLoop(_cts.Token));
     }
 
-    public void Stop() => _cts.Cancel();
+    public void Stop()
+    {
+        _cts.Cancel();
+        _restrictions.Dispose();
+    }
 
     // ---------- Découverte UDP ----------
     private async Task DiscoveryLoop(CancellationToken ct)
@@ -69,7 +105,7 @@ internal sealed class AgentServer
                     UserName = Environment.UserName,
                     IpAddress = LocalIp(result.RemoteEndPoint.Address),
                     ControlPort = Net.ControlPort,
-                    AgentVersion = "1.0.0",
+                    AgentVersion = AgentInfo.Version,
                 };
                 byte[] data = JsonSerializer.SerializeToUtf8Bytes(reply);
                 await udp.SendAsync(data, data.Length, result.RemoteEndPoint);
@@ -113,6 +149,8 @@ internal sealed class AgentServer
         var ct = linked.Token;
         var writeLock = new SemaphoreSlim(1, 1);
         CancellationTokenSource? streamCts = null;
+        Session? session = null;
+        bool broadcasting = false;
 
         try
         {
@@ -135,6 +173,11 @@ internal sealed class AgentServer
             if (!ok) return;
 
             _host.SetStatus($"Connecté — {hp.TeacherName}");
+
+            session = new Session(stream, writeLock, ct);
+            lock (_sessions) _sessions.Add(session);
+            if (_handRaised)
+                await SendLocked(stream, writeLock, MessageType.HandRaise, new HandRaisePayload { Raised = true }, ct);
 
             // --- Boucle de commandes ---
             while (!ct.IsCancellationRequested)
@@ -201,6 +244,33 @@ internal sealed class AgentServer
                     case MessageType.Logoff:
                         Power("/l", Wire.Read<PowerPayload>(env));
                         break;
+
+                    case MessageType.BroadcastStart:
+                        var bs = Wire.Read<BroadcastStartPayload>(env) ?? new BroadcastStartPayload();
+                        broadcasting = true;
+                        _host.ShowBroadcast(bs.Title, bs.Exclusive);
+                        break;
+
+                    case MessageType.BroadcastFrame:
+                        var bf = Wire.Read<ScreenFramePayload>(env);
+                        if (bf != null && broadcasting) _host.ShowBroadcastFrame(bf.Jpeg);
+                        break;
+
+                    case MessageType.BroadcastStop:
+                        broadcasting = false;
+                        _host.HideBroadcast();
+                        break;
+
+                    case MessageType.LowerHand:
+                        _handRaised = false;
+                        _host.SetHandRaised(false);
+                        await PushToAll(MessageType.HandRaise, new HandRaisePayload { Raised = false });
+                        break;
+
+                    case MessageType.SetRestrictions:
+                        var rp = Wire.Read<RestrictionsPayload>(env);
+                        if (rp != null) _restrictions.Apply(rp);
+                        break;
                 }
             }
         }
@@ -209,6 +279,9 @@ internal sealed class AgentServer
         finally
         {
             streamCts?.Cancel();
+            if (session != null) lock (_sessions) _sessions.Remove(session);
+            // Si le professeur se déconnecte pendant une diffusion, on rend la main à l'élève.
+            if (broadcasting) _host.HideBroadcast();
             try { client.Close(); } catch { }
             _host.SetStatus("En attente de connexion…");
         }

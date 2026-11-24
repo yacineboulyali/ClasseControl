@@ -141,4 +141,14 @@ internal static class Native
     // ---------- Blocage des entrées (verrouillage) ----------
     [DllImport("user32.dll", SetLastError = true)]
     public static extern bool BlockInput(bool fBlockIt);
+
+    // ---------- Fenêtre au premier plan (restrictions de sites) ----------
+    [DllImport("user32.dll")]
+    public static extern IntPtr GetForegroundWindow();
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+    public static extern int GetWindowText(IntPtr hWnd, System.Text.StringBuilder text, int maxCount);
+
+    [DllImport("user32.dll")]
+    public static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint processId);
 }

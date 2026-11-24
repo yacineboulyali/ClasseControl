@@ -21,6 +21,11 @@ public static class Net
     public const int ProtocolVersion = 1;
 }
 
+public static class AgentInfo
+{
+    public const string Version = "1.2.0";
+}
+
 /// <summary>Types de messages échangés sur le canal de contrôle TCP.</summary>
 public enum MessageType
 {
@@ -38,6 +43,14 @@ public enum MessageType
     Shutdown = 50,        // éteindre le poste
     Restart = 51,         // redémarrer le poste
     Logoff = 52,          // fermer la session Windows
+    BroadcastStart = 60,  // début de diffusion de l'écran du professeur
+    BroadcastFrame = 61,  // une image de l'écran du professeur (JPEG)
+    BroadcastStop = 62,   // fin de diffusion
+    LowerHand = 65,       // le professeur baisse la main levée de l'élève
+    SetRestrictions = 70, // liste d'applications / sites interdits
+
+    // --- Élève -> Prof (suite) ---
+    HandRaise = 110,      // l'élève lève / baisse la main
 
     // --- Élève -> Prof ---
     HelloAck = 1,         // réponse à Hello (accepté/refusé)
@@ -68,7 +81,7 @@ public sealed class DiscoveryReply
     public string UserName { get; set; } = "";
     public string IpAddress { get; set; } = "";
     public int ControlPort { get; set; } = Net.ControlPort;
-    public string AgentVersion { get; set; } = "1.0.0";
+    public string AgentVersion { get; set; } = AgentInfo.Version;
 }
 
 public sealed class HelloPayload
@@ -154,4 +167,31 @@ public sealed class PowerPayload
 {
     public int DelaySeconds { get; set; } = 5;
     public string Message { get; set; } = "";
+}
+
+
+/// <summary>Début de diffusion de l'écran du professeur vers les élèves.</summary>
+public sealed class BroadcastStartPayload
+{
+    public string Title { get; set; } = "Diffusion de l'écran du professeur";
+    /// <summary>Plein écran au premier plan + clavier/souris de l'élève neutralisés.</summary>
+    public bool Exclusive { get; set; } = true;
+}
+
+/// <summary>
+/// Restrictions appliquées sur le poste élève. Les applications sont des noms
+/// de processus (sans .exe) ; les sites sont des mots-clés recherchés dans le
+/// titre de l'onglet actif du navigateur (ex : "youtube", "facebook").
+/// </summary>
+public sealed class RestrictionsPayload
+{
+    public bool Enabled { get; set; }
+    public List<string> BlockedApps { get; set; } = new();
+    public List<string> BlockedSites { get; set; } = new();
+}
+
+public sealed class HandRaisePayload
+{
+    public bool Raised { get; set; }
+    public string Note { get; set; } = "";
 }

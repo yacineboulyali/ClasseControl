@@ -1,5 +1,5 @@
 ╔══════════════════════════════════════════════════════════════════╗
-║   CLASSE_CONTROLE — Supervision de salle informatique (v1.0)       ║
+║   CLASSE_CONTROLE — Supervision de salle informatique (v1.2)       ║
 ║   Équivalent libre et original de type "NetSupport School"         ║
 ╚══════════════════════════════════════════════════════════════════╝
 
@@ -27,6 +27,10 @@ switch / même sous-réseau).
   4. Windows Firewall peut demander une autorisation : cochez
      « Réseaux privés » et « Autoriser l'accès ».
 
+  Demander de l'aide : clic droit sur l'icône → « ✋ Lever la main ».
+  Le professeur voit la demande sur sa console ; recliquez pour baisser
+  la main (ou le professeur la baisse pour vous).
+
   Pour fermer l'agent : clic droit sur l'icône → « Quitter l'agent »
   (le code de salle est demandé, pour éviter que les élèves le ferment).
 
@@ -52,6 +56,21 @@ switch / même sous-réseau).
      ✖  Fermer une application (par nom de processus, ex : chrome)
      ⏻  Éteindre   /   ↻ Redémarrer   /   🚪 Déconnecter la session
         (une confirmation est demandée)
+     📺 Diffuser mon écran → votre écran s'affiche chez les élèves.
+        Option « plein écran » : clavier/souris élèves bloqués.
+        Recliquez (« ⏹ Arrêter la diffusion ») pour rendre la main.
+     ⛔ Restrictions… → applications interdites (un nom de processus
+        par ligne, ex : discord) et sites interdits (un mot-clé par
+        ligne, ex : youtube). « Tout lever » supprime les restrictions.
+        Elles s'appliquent aussi aux postes qui se connectent ensuite.
+     📋 Présence → liste de la séance (arrivée, départ, mains levées),
+        bouton « Exporter » pour un fichier CSV à ouvrir dans Excel.
+     📜 Journal → toutes vos actions, enregistrées automatiquement dans
+        Documents\Classe_controle\journal-AAAA-MM-JJ.csv
+
+  Main levée : la carte de l'élève devient ORANGE, affiche
+  « ✋ Demande de l'aide » et remonte en premier. Bouton « Baisser »
+  une fois l'élève aidé.
 
   Sur chaque carte :
      👁 Voir / Contrôler  → ouvre l'écran de l'élève en grand ;
@@ -82,7 +101,11 @@ switch / même sous-réseau).
   • Le contrôle à distance ne peut pas piloter les fenêtres UAC
     (« Voulez-vous autoriser… ») ni un logiciel lancé en administrateur
     si l'agent n'est pas lui-même administrateur.
+  • Le blocage des sites se base sur le TITRE de l'onglet actif du
+    navigateur : efficace en séance, mais ce n'est pas un pare-feu.
+  • Les restrictions disparaissent si l'agent est redémarré : le
+    professeur les renvoie via « ⛔ Restrictions… ».
   • Outil destiné à un usage pédagogique encadré, sur des postes dont
     vous avez la responsabilité. Informez les utilisateurs.
 
-Bon cours !  —  Classe_controle v1.0
+Bon cours !  —  Classe_controle v1.2

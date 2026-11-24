@@ -37,6 +37,16 @@ ClasseControle.Console   Poste prof   (Avalonia)
 - ✖ Fermer une application à distance (par nom de processus)
 - ⏻ **Éteindre / redémarrer / déconnecter** les postes à distance (avec confirmation)
 - ☑️ Sélection groupée (tout / rien / par poste)
+- 📺 **Diffusion de l'écran du professeur** vers la classe (plein écran avec
+  clavier/souris bloqués, ou en fenêtre)
+- ⛔ **Restrictions** : applications interdites (fermées automatiquement) et
+  sites interdits (onglet fermé si son titre contient un mot-clé)
+- ✋ **Main levée** : l'élève demande de l'aide depuis l'icône de notification,
+  la carte du poste passe en orange et remonte en tête
+- 📋 **Liste de présence** de la séance (arrivée, départ, mains levées),
+  export CSV pour Excel
+- 📜 **Journal des actions** du professeur, enregistré automatiquement dans
+  `Documents\Classe_controle\journal-AAAA-MM-JJ.csv`
 
 ## Compilation
 
@@ -69,14 +79,12 @@ RoomCode=CLASSE          # doit être identique à celui de la console
 DisplayName=NOM-DU-PC    # nom affiché dans la console
 ```
 
-## Pistes v2
+## Pistes v1.3+
 
-- Miniatures live de tous les écrans en continu
-- Diffusion de l'écran du **professeur** vers les élèves
 - Chiffrement TLS du canal de contrôle + mot de passe fort
-- Liste de présence, journal des actions
-- Blocage de sites / applications par liste
 - Service Windows + déploiement MSI/GPO
+- Blocage des sites au niveau réseau (proxy / DNS) en complément du blocage par titre
+- Sondages / quiz rapides envoyés à la classe
 
 ## Licence
 

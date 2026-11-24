@@ -19,6 +19,7 @@ internal sealed class MainWindow : Window
         public required TextBlock Status;
         public required Button LockBtn;
         public required Image ThumbImg;
+        public required Border HandBadge;
         public Avalonia.Media.Imaging.Bitmap? Thumb;
     }
 
@@ -33,6 +34,10 @@ internal sealed class MainWindow : Window
     private readonly Dictionary<string, Card> _cards = new();
     private readonly CheckBox _thumbsToggle = new() { Content = "Miniatures en direct", IsChecked = true, VerticalAlignment = VerticalAlignment.Center };
     private Button _scanBtn = null!;
+    private Button _broadcastBtn = null!;
+    private readonly ScreenBroadcaster _broadcaster = new();
+    private RestrictionsPayload _restrictions = new();
+    private static readonly IBrush HandBrush = new SolidColorBrush(Color.FromRgb(210, 153, 34));
 
     public MainWindow()
     {
@@ -70,8 +75,10 @@ internal sealed class MainWindow : Window
             Orientation = Orientation.Horizontal,
             Margin = new Thickness(0, 10, 0, 0),
         };
-        AddAction(actionBar, "🔒  Tout verrouiller", () => ApplyAsync(c => c.Lock("Écran verrouillé par le professeur"), lockState: true));
-        AddAction(actionBar, "🔓  Tout déverrouiller", () => ApplyAsync(c => c.Unlock(), lockState: false));
+        AddAction(actionBar, "🔒  Tout verrouiller", () => ApplyAsync("Verrouillage", c => c.Lock("Écran verrouillé par le professeur"), lockState: true));
+        AddAction(actionBar, "🔓  Tout déverrouiller", () => ApplyAsync("Déverrouillage", c => c.Unlock(), lockState: false));
+        _broadcastBtn = AddAction(actionBar, "📺  Diffuser mon écran", ToggleBroadcastAsync);
+        AddAction(actionBar, "⛔  Restrictions…", EditRestrictionsAsync);
         AddAction(actionBar, "💬  Message à la classe", SendMessageAsync);
         AddAction(actionBar, "📁  Envoyer un fichier…", SendFileAsync);
         AddAction(actionBar, "🚀  Lancer une app…", LaunchAppAsync);
@@ -79,6 +86,8 @@ internal sealed class MainWindow : Window
         AddAction(actionBar, "⏻  Éteindre", () => PowerAsync("éteindre", c => c.Shutdown(10, "Arrêt demandé par le professeur")));
         AddAction(actionBar, "↻  Redémarrer", () => PowerAsync("redémarrer", c => c.Restart(10, "Redémarrage demandé par le professeur")));
         AddAction(actionBar, "🚪  Déconnecter la session", () => PowerAsync("déconnecter la session de", c => c.Logoff()));
+        AddAction(actionBar, "📋  Présence", () => { new AttendanceWindow(SessionContext).Show(this); return Task.CompletedTask; });
+        AddAction(actionBar, "📜  Journal", () => { new JournalWindow().Show(this); return Task.CompletedTask; });
 
         var selectBar = new StackPanel
         {
@@ -148,17 +157,22 @@ internal sealed class MainWindow : Window
                     Dispatcher.UIThread.Post(async () =>
                     {
                         UpdateCardStatus(card, up ? "Connecté" : "Déconnecté", up);
-                        if (up && _thumbsToggle.IsChecked == true)
-                            try { await c.AcquireStream("thumb", ThumbProfile); } catch { }
+                        if (up) await OnConnectedAsync(c);
+                        else
+                        {
+                            Attendance.MarkDisconnected(c);
+                            ActionLog.Add("Déconnexion", c.Info.MachineName);
+                        }
                     });
+                conn.HandChanged += (c, raised) => Dispatcher.UIThread.Post(() => OnHandChanged(card, raised));
                 if (ok)
                 {
                     nouveaux++;
-                    if (_thumbsToggle.IsChecked == true)
-                        try { await conn.AcquireStream("thumb", ThumbProfile); } catch { }
+                    await OnConnectedAsync(conn);
                 }
             }
             SetStatus($"{replies.Count} poste(s) trouvé(s), {_cards.Count(c => c.Value.Conn.IsConnected)} connecté(s).");
+            if (nouveaux > 0) ActionLog.Add("Recherche des postes", $"{nouveaux} nouveau(x) poste(s)", $"salle {code}");
         }
         catch (Exception ex) { SetStatus("Erreur de recherche : " + ex.Message); }
         finally { _scanBtn.IsEnabled = true; }
@@ -171,6 +185,30 @@ internal sealed class MainWindow : Window
         var ip = new TextBlock { Text = conn.Info.IpAddress, Foreground = new SolidColorBrush(Color.FromRgb(110, 118, 129)), FontSize = 11 };
         var status = new TextBlock { Text = "Connexion…", FontSize = 12, Margin = new Thickness(0, 4, 0, 0) };
         var select = new CheckBox { Content = "Sélectionner" };
+
+        var lowerHand = new Button { Content = "Baisser", Padding = new Thickness(8, 2, 8, 2), FontSize = 11, Margin = new Thickness(8, 0, 0, 0) };
+        var handBadge = new Border
+        {
+            IsVisible = false,
+            Background = HandBrush,
+            CornerRadius = new CornerRadius(6),
+            Padding = new Thickness(8, 4, 4, 4),
+            Margin = new Thickness(0, 6, 0, 0),
+            Child = new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                Children =
+                {
+                    new TextBlock { Text = "✋ Demande de l'aide", Foreground = Brushes.Black, FontWeight = FontWeight.SemiBold, VerticalAlignment = VerticalAlignment.Center },
+                    lowerHand,
+                },
+            },
+        };
+        lowerHand.Click += async (_, _) =>
+        {
+            await conn.LowerHand();
+            ActionLog.Add("Main baissée", conn.Info.MachineName);
+        };
 
         var thumb = new Image
         {
@@ -188,9 +226,14 @@ internal sealed class MainWindow : Window
         };
 
         var view = SmallButton("👁 Voir / Contrôler");
-        view.Click += (_, _) => { if (conn.IsConnected) new RemoteViewWindow(conn).Show(); };
+        view.Click += (_, _) =>
+        {
+            if (!conn.IsConnected) return;
+            new RemoteViewWindow(conn).Show();
+            ActionLog.Add("Vue de l'écran", conn.Info.MachineName);
+        };
         var lockBtn = SmallButton("🔒 Verrouiller");
-        var card = new Card { Conn = conn, Border = null!, Select = select, Status = status, LockBtn = lockBtn, ThumbImg = thumb };
+        var card = new Card { Conn = conn, Border = null!, Select = select, Status = status, LockBtn = lockBtn, ThumbImg = thumb, HandBadge = handBadge };
 
         // Mise à jour de la miniature à chaque image reçue.
         conn.FrameReceived += f => Dispatcher.UIThread.Post(() =>
@@ -210,6 +253,7 @@ internal sealed class MainWindow : Window
             if (!conn.IsConnected) return;
             if (conn.IsLocked) { await conn.Unlock(); conn.IsLocked = false; }
             else { await conn.Lock("Écran verrouillé par le professeur"); conn.IsLocked = true; }
+            ActionLog.Add(conn.IsLocked ? "Verrouillage" : "Déverrouillage", conn.Info.MachineName);
             lockBtn.Content = conn.IsLocked ? "🔓 Déverrouiller" : "🔒 Verrouiller";
         };
         var msgBtn = SmallButton("💬 Message");
@@ -218,7 +262,7 @@ internal sealed class MainWindow : Window
         var buttons = new StackPanel { Spacing = 6, Margin = new Thickness(0, 10, 0, 0),
             Children = { view, new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6, Children = { lockBtn, msgBtn } } } };
 
-        var panel = new StackPanel { Children = { name, user, ip, status, thumbBorder, select, buttons } };
+        var panel = new StackPanel { Children = { name, user, ip, status, handBadge, thumbBorder, select, buttons } };
         var border = new Border
         {
             Width = 240,
@@ -237,9 +281,47 @@ internal sealed class MainWindow : Window
     private void UpdateCardStatus(Card card, string text, bool connected)
     {
         card.Status.Text = (connected ? "🟢 " : "🔴 ") + text;
-        card.Border.BorderBrush = new SolidColorBrush(connected
+        ApplyCardBorder(card);
+    }
+
+    private static void ApplyCardBorder(Card card)
+    {
+        card.Border.BorderThickness = new Thickness(card.Conn.IsHandRaised ? 3 : 1);
+        card.Border.BorderBrush = card.Conn.IsHandRaised ? HandBrush : new SolidColorBrush(card.Conn.IsConnected
             ? Color.FromRgb(46, 160, 67) : Color.FromRgb(90, 50, 50));
     }
+
+    /// <summary>Poste (re)connecté : présence, miniature, restrictions et diffusion en cours.</summary>
+    private async Task OnConnectedAsync(AgentConnection c)
+    {
+        Attendance.MarkConnected(c);
+        ActionLog.Add("Connexion", c.Info.MachineName, $"{c.Info.UserName} — {c.Info.IpAddress}");
+        if (_thumbsToggle.IsChecked == true)
+            try { await c.AcquireStream("thumb", ThumbProfile); } catch { }
+        if (_restrictions.Enabled)
+            try { await c.SetRestrictions(_restrictions); } catch { }
+        if (_broadcaster.IsRunning)
+            try { await _broadcaster.AddAsync(c); } catch { }
+    }
+
+    private void OnHandChanged(Card card, bool raised)
+    {
+        card.HandBadge.IsVisible = raised;
+        ApplyCardBorder(card);
+        if (raised)
+        {
+            Attendance.CountHand(card.Conn);
+            ActionLog.Add("Main levée", card.Conn.Info.MachineName);
+            // Remonte la carte en tête pour qu'elle soit visible tout de suite.
+            if (_grid.Children.Remove(card.Border)) _grid.Children.Insert(0, card.Border);
+            Activate();
+        }
+        int n = _cards.Values.Count(c => c.Conn.IsHandRaised);
+        SetStatus(n > 0 ? $"✋ {n} élève(s) demande(nt) de l'aide." : "Aucune main levée.");
+    }
+
+    private (string teacher, string room) SessionContext() =>
+        (_teacherName.Text?.Trim() ?? "", _roomCode.Text?.Trim() ?? "");
 
     // ---------- Actions ----------
     private IEnumerable<AgentConnection> Targets()
@@ -249,9 +331,15 @@ internal sealed class MainWindow : Window
         return _cards.Values.Where(c => c.Conn.IsConnected).Select(c => c.Conn);
     }
 
-    private async Task ApplyAsync(Func<AgentConnection, Task> action, bool? lockState = null)
+    private bool HasSelection => _cards.Values.Any(c => c.Select.IsChecked == true && c.Conn.IsConnected);
+
+    private void Log(string action, IReadOnlyCollection<AgentConnection> targets, string details = "") =>
+        ActionLog.Add(action, ActionLog.Describe(targets, !HasSelection), details);
+
+    private async Task ApplyAsync(string label, Func<AgentConnection, Task> action, bool? lockState = null, string details = "")
     {
         var targets = Targets().ToList();
+        Log(label, targets, details);
         foreach (var c in targets)
         {
             try { await action(c); if (lockState.HasValue) c.IsLocked = lockState.Value; } catch { }
@@ -267,7 +355,7 @@ internal sealed class MainWindow : Window
         var dlg = new ComposeMessageDialog();
         await dlg.ShowDialog(this);
         if (dlg.Result is not { } r || string.IsNullOrWhiteSpace(r.text)) return;
-        await ApplyAsync(c => c.ShowMessage(r.title, r.text, 0));
+        await ApplyAsync("Message", c => c.ShowMessage(r.title, r.text, 0), details: r.text);
     }
 
     private async Task MessageOneAsync(AgentConnection conn)
@@ -275,7 +363,10 @@ internal sealed class MainWindow : Window
         var dlg = new ComposeMessageDialog();
         await dlg.ShowDialog(this);
         if (dlg.Result is { } r && !string.IsNullOrWhiteSpace(r.text))
+        {
             await conn.ShowMessage(r.title, r.text, 0);
+            ActionLog.Add("Message", conn.Info.MachineName, r.text);
+        }
     }
 
 
@@ -303,6 +394,7 @@ internal sealed class MainWindow : Window
         {
             try { await c.PushFile(name, content, open: false); } catch { }
         }
+        Log("Envoi de fichier", targets, $"{name} ({content.Length / 1024} Ko)");
         SetStatus($"Fichier « {name} » envoyé à {targets.Count} poste(s).");
     }
 
@@ -312,7 +404,7 @@ internal sealed class MainWindow : Window
             "ex : notepad  ou  https://ofppt.ma", "notepad");
         await dlg.ShowDialog(this);
         if (string.IsNullOrWhiteSpace(dlg.Result)) return;
-        await ApplyAsync(c => c.LaunchApp(dlg.Result!.Trim(), ""));
+        await ApplyAsync("Lancement", c => c.LaunchApp(dlg.Result!.Trim(), ""), details: dlg.Result!.Trim());
     }
 
     private async Task CloseAppAsync()
@@ -321,7 +413,7 @@ internal sealed class MainWindow : Window
             "ex : chrome", "");
         await dlg.ShowDialog(this);
         if (string.IsNullOrWhiteSpace(dlg.Result)) return;
-        await ApplyAsync(c => c.CloseApp(dlg.Result!.Trim()));
+        await ApplyAsync("Fermeture d'application", c => c.CloseApp(dlg.Result!.Trim()), details: dlg.Result!.Trim());
     }
 
     private async Task PowerAsync(string verbe, Func<AgentConnection, Task> action)
@@ -335,7 +427,51 @@ internal sealed class MainWindow : Window
         if (!confirm.Confirmed) return;
 
         foreach (var c in targets) { try { await action(c); } catch { } }
+        Log("Alimentation : " + verbe, targets);
         SetStatus($"Commande « {verbe} » envoyée à {targets.Count} poste(s).");
+    }
+
+    private async Task ToggleBroadcastAsync()
+    {
+        if (_broadcaster.IsRunning)
+        {
+            int n = _broadcaster.Targets.Count;
+            await _broadcaster.StopAsync();
+            _broadcastBtn.Content = "📺  Diffuser mon écran";
+            _broadcastBtn.ClearValue(BackgroundProperty);
+            ActionLog.Add("Fin de diffusion", $"{n} poste(s)");
+            SetStatus("Diffusion arrêtée.");
+            return;
+        }
+
+        var targets = Targets().ToList();
+        if (targets.Count == 0) { SetStatus("Aucun poste connecté."); return; }
+        var dlg = new BroadcastDialog(targets.Count);
+        await dlg.ShowDialog(this);
+        if (dlg.Result is not { } options) return;
+
+        await _broadcaster.StartAsync(targets, options);
+        _broadcastBtn.Content = "⏹  Arrêter la diffusion";
+        _broadcastBtn.Background = new SolidColorBrush(Color.FromRgb(185, 28, 28));
+        Log("Diffusion de l'écran", targets, options.Exclusive ? "plein écran, entrées bloquées" : "fenêtre");
+        SetStatus($"📺 Diffusion en cours vers {targets.Count} poste(s).");
+    }
+
+    private async Task EditRestrictionsAsync()
+    {
+        var targets = Targets().ToList();
+        var dlg = new RestrictionsDialog(_restrictions, targets.Count);
+        await dlg.ShowDialog(this);
+        if (dlg.Result is not { } r) return;
+
+        _restrictions = r;
+        foreach (var c in targets) { try { await c.SetRestrictions(r); } catch { } }
+        bool active = r.Enabled && (r.BlockedApps.Count + r.BlockedSites.Count) > 0;
+        Log(active ? "Restrictions appliquées" : "Restrictions levées", targets,
+            active ? $"apps : {string.Join(", ", r.BlockedApps)} | sites : {string.Join(", ", r.BlockedSites)}" : "");
+        SetStatus(active
+            ? $"⛔ Restrictions actives : {r.BlockedApps.Count} application(s), {r.BlockedSites.Count} site(s)."
+            : "Restrictions levées.");
     }
 
     private void SetAllSelected(bool value)
@@ -373,12 +509,13 @@ internal sealed class MainWindow : Window
         return b;
     }
 
-    private void AddAction(Panel bar, string text, Func<Task> handler)
+    private Button AddAction(Panel bar, string text, Func<Task> handler)
     {
         var b = SmallButton(text);
         b.Margin = new Thickness(0, 0, 8, 8);
         b.Click += async (_, _) => { try { await handler(); } catch (Exception ex) { SetStatus("Erreur : " + ex.Message); } };
         bar.Children.Add(b);
+        return b;
     }
 
     private static Button PrimaryButton(string text) => new()
