@@ -109,7 +109,19 @@ internal sealed class MainWindow : Window
             if (_broadcaster.IsRunning) await _broadcaster.StopAsync();
             if (_announcer.IsLive) await _announcer.StopAsync();
         };
-        Opened += async (_, _) => { if (!string.IsNullOrWhiteSpace(_roomCode.Text)) await ScanAsync(); };
+        Opened += async (_, _) =>
+        {
+            Title = $"Classe_controle {AppVersion.RunningText} — Console professeur";
+            if (!string.IsNullOrWhiteSpace(_roomCode.Text)) await ScanAsync();
+            // Vérification discrète au démarrage, puis surveillance d'une mise à jour installée.
+            _ = CheckConsoleUpdateAsync(interactive: false);
+            DispatcherTimer.Run(() =>
+            {
+                if (!AppVersion.NewerOnDisk()) return true;
+                Run(OfferRestartAsync);
+                return false;
+            }, TimeSpan.FromMinutes(1));
+        };
     }
 
     // =====================================================================
@@ -347,6 +359,9 @@ internal sealed class MainWindow : Window
                 Ribbon.Big(Glyph.Power, "Éteindre", () => Run(() => PowerAsync(Targets(), "éteindre", c => c.Shutdown(10, "Arrêt demandé par le professeur")))),
                 Ribbon.Big(Glyph.Refresh, "Redémarrer", () => Run(() => PowerAsync(Targets(), "redémarrer", c => c.Restart(10, "Redémarrage demandé par le professeur")))),
                 Ribbon.Big(Glyph.SignOut, "Fermer la session", () => Run(() => PowerAsync(Targets(), "fermer la session de", c => c.Logoff())))),
+            Ribbon.Group("Mises à jour",
+                Ribbon.Big(Glyph.Save, "Mettre à jour les postes", () => Run(() => UpdateStudentsAsync(Targets()))),
+                Ribbon.Big(Glyph.Refresh, "Vérifier les mises à jour", () => Run(() => CheckConsoleUpdateAsync(interactive: true)))),
             Ribbon.Group("Console",
                 Ribbon.Big(Glyph.Settings, "Paramètres", () => Run(OpenSettingsAsync)))));
 
@@ -680,7 +695,9 @@ internal sealed class MainWindow : Window
                 if (await ConnectTileAsync(tile, code, teacher)) nouveaux++;
             }
             UpdateBanner();
-            SetStatus($"{replies.Count} poste(s) trouvé(s), {_tiles.Values.Count(t => t.Conn.IsConnected)} connecté(s).");
+            int outdated = _tiles.Values.Count(t => t.Conn.IsConnected && t.Conn.IsOutdated);
+            SetStatus($"{replies.Count} poste(s) trouvé(s), {_tiles.Values.Count(t => t.Conn.IsConnected)} connecté(s)." +
+                      (outdated > 0 ? $"  ⟳ {outdated} poste(s) en version plus ancienne : Administrer › « Mettre à jour les postes »." : ""));
             if (nouveaux > 0) ActionLog.Add("Recherche des postes", $"{nouveaux} nouveau(x) poste(s)", $"salle {code}");
         }
         catch (Exception ex) { SetStatus("Erreur de recherche : " + ex.Message); }
@@ -1341,6 +1358,78 @@ internal sealed class MainWindow : Window
         var shown = modes.Count == 1 ? modes[0] : modes.Count == 0 ? WebMode.Unrestricted : WebMode.BlockList;
         SetBigLabel(_webBtn, modes.Count > 1 ? "Mixte" : WebLabel(shown));
         SetState(_webBtn, connected.Any(c => c.Restrictions.IsActive) ? "warn" : null);
+    }
+
+    // ---------- Mises à jour ----------
+    /// <summary>Demande aux postes de lancer tout de suite leur tâche de mise à jour (depuis GitHub).</summary>
+    private async Task UpdateStudentsAsync(IReadOnlyList<AgentConnection> targets)
+    {
+        if (targets.Count == 0) { SetStatus("Aucun poste connecté."); return; }
+        if (targets.Any(t => t.IsInternetBlocked))
+        {
+            SetStatus("Internet est coupé sur certains postes : rétablissez-le, la mise à jour se télécharge depuis GitHub.");
+            return;
+        }
+        await ApplyAsync(targets, "Mise à jour des postes", c => c.UpdateNow());
+        SetStatus($"Mise à jour demandée à {targets.Count} poste(s) : chacun télécharge la dernière version et redémarre son agent (1 à 2 min). Relancez « Rechercher » ensuite.");
+    }
+
+    private static readonly System.Net.Http.HttpClient Http = CreateHttp();
+    private static System.Net.Http.HttpClient CreateHttp()
+    {
+        var h = new System.Net.Http.HttpClient { Timeout = TimeSpan.FromSeconds(20) };
+        h.DefaultRequestHeaders.UserAgent.ParseAdd("ClasseControle/" + AppVersion.RunningText);
+        h.DefaultRequestHeaders.Accept.ParseAdd("application/vnd.github+json");
+        return h;
+    }
+
+    /// <summary>Compare la console à la dernière version publiée sur GitHub.</summary>
+    private async Task CheckConsoleUpdateAsync(bool interactive)
+    {
+        Version? latest;
+        try
+        {
+            using var doc = System.Text.Json.JsonDocument.Parse(await Http.GetStringAsync(AppVersion.LatestApi));
+            latest = AppVersion.Parse(doc.RootElement.GetProperty("tag_name").GetString());
+        }
+        catch (Exception ex)
+        {
+            if (interactive) SetStatus("Vérification impossible (pas d'accès à GitHub ?) : " + ex.Message);
+            return;
+        }
+        if (latest == null || latest <= AppVersion.Running)
+        {
+            if (interactive) SetStatus($"La console est à jour (version {AppVersion.RunningText}).");
+            return;
+        }
+        // Installée par l'installateur : la tâche de mise à jour s'en charge ; sinon, page de téléchargement.
+        if (AppVersion.StartUpdateTask(out _))
+        {
+            SetStatus($"Nouvelle version {latest.ToString(3)} disponible : téléchargement en cours… La console proposera de redémarrer.");
+            return;
+        }
+        var ask = new ConfirmDialog("Nouvelle version disponible",
+            $"La version {latest.ToString(3)} de Classe_controle est disponible (vous avez la {AppVersion.RunningText}).\n\nOuvrir la page de téléchargement ?");
+        await ask.ShowDialog(this);
+        if (ask.Confirmed)
+            try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(AppVersion.ReleasesPage) { UseShellExecute = true }); } catch { }
+    }
+
+    /// <summary>Une nouvelle version a été installée pendant que la console tournait.</summary>
+    private async Task OfferRestartAsync()
+    {
+        var v = AppVersion.OnDisk()?.ToString(3) ?? "?";
+        var ask = new ConfirmDialog("Mise à jour installée",
+            $"La version {v} de Classe_controle vient d'être installée.\n\nRedémarrer la console maintenant ? (Les postes élèves restent connectés à leur agent ; il suffira de relancer « Rechercher ».)");
+        await ask.ShowDialog(this);
+        if (!ask.Confirmed) { SetStatus($"Version {v} installée : redémarrez la console quand vous voulez."); return; }
+        try
+        {
+            if (Environment.ProcessPath is { } exe)
+                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(exe, "--prof") { UseShellExecute = false });
+        }
+        catch { }
+        Close();
     }
 
     /// <summary>Désinstalle les jeux préinstallés de Windows (Solitaire, Candy Crush…) sur les postes visés.</summary>

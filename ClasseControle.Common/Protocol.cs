@@ -23,7 +23,8 @@ public static class Net
 
 public static class AgentInfo
 {
-    public const string Version = "1.9.1";
+    /// <summary>Version de l'application (lue dans l'exécutable : un seul endroit à changer, le .csproj).</summary>
+    public static string Version => AppVersion.RunningText;
 }
 
 /// <summary>Types de messages échangés sur le canal de contrôle TCP.</summary>
@@ -57,6 +58,7 @@ public enum MessageType
     AppsWatch = 77,       // démarrer / arrêter l'envoi de la liste des applications ouvertes
     InputLock = 78,       // bloquer / débloquer le clavier et la souris de l'élève (écran visible)
     RemoveGames = 79,     // désinstaller les jeux préinstallés de Windows (pour l'utilisateur du poste)
+    UpdateNow = 84,       // lancer tout de suite la recherche de mise à jour (tâche planifiée)
     Survey = 75,          // sondage rapide envoyé aux élèves
     SurveyClose = 76,     // fin du sondage
     SetRestrictions = 70, // liste d'applications / sites interdits

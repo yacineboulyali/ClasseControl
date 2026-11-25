@@ -310,7 +310,11 @@ internal sealed class StudentTile
         _lesson.Text = LessonTitle;
         _footStudent.Text = Conn.StudentName.Length > 0 ? Conn.StudentName : "—";
         _footUser.Text = Conn.Info.UserName;
-        _footMachine.Text = Conn.Info.MachineName;
+        _footMachine.Text = Conn.Info.MachineName + (Conn.IsOutdated ? "  ⟳" : "");
+        _footMachine.Foreground = Conn.IsOutdated ? Palette.Hand : Palette.Muted;
+        ToolTip.SetTip(_footMachine, Conn.IsOutdated
+            ? $"Version {Conn.Info.AgentVersion} — la console est en {AppVersion.RunningText}.\nAdministrer › « Mettre à jour les postes »."
+            : $"Version {Conn.Info.AgentVersion}");
         ToolTip.SetTip(Root, $"{Conn.Info.MachineName} — {Conn.Info.IpAddress}\n{Status}");
 
         _handBadge.IsVisible = Conn.IsHandRaised;

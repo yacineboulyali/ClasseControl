@@ -38,6 +38,7 @@ complémentaires » → « Exécuter quand même ».
 
 | Version | Téléchargements |
 |---|---|
+| **1.10.0** — mise à jour automatique depuis GitHub | [Installateur](https://github.com/yacineboulyali/ClasseControl/releases/download/v1.10.0/ClasseControle-Setup.exe) · [ClasseControle.exe](https://github.com/yacineboulyali/ClasseControl/releases/download/v1.10.0/ClasseControle.exe) · [Portable (.zip)](https://github.com/yacineboulyali/ClasseControl/releases/download/v1.10.0/ClasseControle-portable.zip) · [Notes](https://github.com/yacineboulyali/ClasseControl/releases/tag/v1.10.0) |
 | **1.9.1** — installateur : suppression des jeux Windows pour tous les utilisateurs | [Installateur](https://github.com/yacineboulyali/ClasseControl/releases/download/v1.9.1/ClasseControle-Setup.exe) · [ClasseControle.exe](https://github.com/yacineboulyali/ClasseControl/releases/download/v1.9.1/ClasseControle.exe) · [Portable (.zip)](https://github.com/yacineboulyali/ClasseControl/releases/download/v1.9.1/ClasseControle-portable.zip) · [Notes](https://github.com/yacineboulyali/ClasseControl/releases/tag/v1.9.1) |
 | **1.9.0** — restrictions par élève, jeux Windows bloqués ou désinstallés | [Installateur](https://github.com/yacineboulyali/ClasseControl/releases/download/v1.9.0/ClasseControle-Setup.exe) · [ClasseControle.exe](https://github.com/yacineboulyali/ClasseControl/releases/download/v1.9.0/ClasseControle.exe) · [Portable (.zip)](https://github.com/yacineboulyali/ClasseControl/releases/download/v1.9.0/ClasseControle-portable.zip) · [Notes](https://github.com/yacineboulyali/ClasseControl/releases/tag/v1.9.0) |
 | **1.8.0** — blocage du clavier et de la souris | [Installateur](https://github.com/yacineboulyali/ClasseControl/releases/download/v1.8.0/ClasseControle-Setup.exe) · [ClasseControle.exe](https://github.com/yacineboulyali/ClasseControl/releases/download/v1.8.0/ClasseControle.exe) · [Portable (.zip)](https://github.com/yacineboulyali/ClasseControl/releases/download/v1.8.0/ClasseControle-portable.zip) · [Notes](https://github.com/yacineboulyali/ClasseControl/releases/tag/v1.8.0) |
@@ -229,6 +230,15 @@ Un seul installateur ; au premier écran on choisit le **type de poste** :
 |---|---|
 | **Poste du professeur** | La console, avec raccourcis menu Démarrer et Bureau |
 | **Poste élève** | Uniquement l'agent, **sans aucun raccourci** : il démarre seul à chaque ouverture de session (tâche planifiée cachée, relancée automatiquement) et n'apparaît que dans la zone de notification. Le code de salle est demandé pendant l'installation. Les règles du pare-feu sont créées automatiquement. |
+
+**Mise à jour automatique (option cochée par défaut, professeur et élève)** : une tâche
+planifiée Windows (compte SYSTEM) vérifie toutes les heures et au démarrage la dernière
+version publiée sur GitHub et l'installe toute seule. L'agent élève redémarre de lui-même
+sur la nouvelle version ; la console propose de redémarrer. Seule la version officielle
+GitHub est installée (rien n'est accepté depuis le réseau local). Dans la console :
+version de chaque poste (⟳ si plus ancienne), boutons « Mettre à jour les postes » et
+« Vérifier les mises à jour » (onglet Administrer). Journal :
+`%ProgramData%\Classe_controle\update.log`. Il faut un accès à Internet (GitHub).
 
 **Option du poste élève (cochée par défaut)** : « Supprimer les jeux préinstallés de Windows pour tous les utilisateurs ». L'installateur désinstalle Solitaire, Candy Crush, Minecraft, Mahjong, Démineur… de **tous les comptes** du poste, les **retire de l'image Windows** (les comptes créés plus tard ne les auront pas) et désactive l'installation automatique des jeux « suggérés » (Windows Éducation/Entreprise). Minecraft Éducation n'est pas concerné. Journal : `%ProgramData%\Classe_controle\remove-games.log`.
 

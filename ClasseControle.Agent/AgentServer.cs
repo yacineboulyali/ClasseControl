@@ -452,6 +452,18 @@ internal sealed class AgentServer
                         catch { }
                         break;
 
+                    case MessageType.UpdateNow:
+                        var askedBy = session;
+                        _ = Task.Run(async () =>
+                        {
+                            bool started = AppVersion.StartUpdateTask(out string msg);
+                            string text = started
+                                ? $"{_settings.DisplayName} (v{AppVersion.RunningText}) : {msg} — le poste redémarrera l'agent s'il y a une nouvelle version."
+                                : $"{_settings.DisplayName} (v{AppVersion.RunningText}) : mise à jour impossible ({msg}). Installez avec l'installateur, option « Mise à jour automatique ».";
+                            await SendTo(askedBy, MessageType.AgentNotice, new AgentNoticePayload { Text = text });
+                        });
+                        break;
+
                     case MessageType.RemoveGames:
                         var replyTo = session;
                         _ = Task.Run(async () =>

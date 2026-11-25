@@ -7,7 +7,11 @@ $ErrorActionPreference = 'Stop'
 $root = Split-Path $PSScriptRoot -Parent
 Set-Location $root
 
-$common = @('-c', 'Release', '-r', 'win-x64', '--self-contained', 'true',
+# Numéro de version : une seule source, « #define AppVersion » de l'installateur.
+$version = (Select-String -Path (Join-Path $PSScriptRoot 'ClasseControle.iss') -Pattern '#define AppVersion "([^"]+)"').Matches[0].Groups[1].Value
+Write-Host "Version $version"
+
+$common = @('-c', 'Release', '-r', 'win-x64', '--self-contained', 'true', "-p:Version=$version",
             '-p:PublishSingleFile=true', '-p:IncludeNativeLibrariesForSelfExtract=true',
             '-p:EnableCompressionInSingleFile=true')
 

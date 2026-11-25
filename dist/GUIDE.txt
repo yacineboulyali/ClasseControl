@@ -1,5 +1,5 @@
 ╔══════════════════════════════════════════════════════════════════╗
-║   CLASSE_CONTROLE — Supervision de salle informatique (v1.9)       ║
+║   CLASSE_CONTROLE — Supervision de salle informatique (v1.10)       ║
 ║   Équivalent libre et original de type "NetSupport School"         ║
 ╚══════════════════════════════════════════════════════════════════╝
 
@@ -30,6 +30,11 @@ switch / même sous-réseau).
   Candy Crush, Minecraft, Mahjong, Démineur…). Les jeux sont retirés de
   tous les comptes ET de l'image Windows (nouveaux comptes compris).
   Journal : C:\ProgramData\Classe_controle\remove-games.log
+  Option « Mise à jour automatique depuis GitHub » (cochée par défaut,
+  professeur et élève) : chaque poste vérifie toutes les heures s'il
+  existe une nouvelle version et l'installe seul ; l'agent élève
+  redémarre de lui-même, la console propose de redémarrer.
+  Journal : C:\ProgramData\Classe_controle\update.log
   Le pare-feu est configuré automatiquement.
   Sans installateur, suivez les étapes 1) et 2) ci-dessous.
 
@@ -115,6 +120,11 @@ switch / même sous-réseau).
      ⚙ Paramètres → texte et image de l'écran de verrouillage.
      🖱 Contrôler → sélectionnez un poste puis « Contrôler » (ou clic droit
         sur la vignette) : vous pilotez sa souris et son clavier.
+     ⟳ Mises à jour (onglet Administrer) :
+        - « Mettre à jour les postes » : les postes téléchargent tout de
+          suite la dernière version (Internet doit être actif) ;
+        - « Vérifier les mises à jour » : pour la console elle-même.
+        Un ⟳ orange à côté du nom d'un poste = version plus ancienne.
      ⌨ Bloquer clavier/souris → les élèves voient leur écran mais ne
         peuvent plus taper ni cliquer (un bandeau les prévient). Vous
         gardez la prise de contrôle à distance. Recliquez « Débloquer ».
@@ -196,4 +206,4 @@ switch / même sous-réseau).
   • Outil destiné à un usage pédagogique encadré, sur des postes dont
     vous avez la responsabilité. Informez les utilisateurs.
 
-Bon cours !  —  Classe_controle v1.9
+Bon cours !  —  Classe_controle v1.10

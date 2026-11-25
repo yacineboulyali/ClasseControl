@@ -43,6 +43,15 @@ public sealed class App : Application, IAgentHost
 
             _server = new AgentServer(_settings, this);
             _server.Start();
+
+            // Mise à jour automatique : si la tâche SYSTEM a installé une nouvelle version
+            // de ClasseControle.exe, l'agent redémarre dessus (vérification chaque minute).
+            DispatcherTimer.Run(() =>
+            {
+                if (!ClasseControle.Common.AppVersion.NewerOnDisk()) return true;
+                RestartOnNewVersion(desktop);
+                return false;
+            }, TimeSpan.FromMinutes(1));
             SetStatus("En attente de connexion…");
         }
 
@@ -86,6 +95,22 @@ public sealed class App : Application, IAgentHost
             IsVisible = true,
         };
         if (icon != null) _tray.Icon = icon;
+    }
+
+    private void RestartOnNewVersion(IClassicDesktopStyleApplicationLifetime desktop)
+    {
+        try
+        {
+            InputBlocker.ReleaseAll();
+            _server?.Stop();
+            if (_tray != null) _tray.IsVisible = false;
+            ClasseControle.Common.AppRuntime.ReleaseSingleInstance?.Invoke();
+            string? exe = Environment.ProcessPath;
+            if (exe != null)
+                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(exe, "--eleve") { UseShellExecute = false });
+        }
+        catch { }
+        desktop.Shutdown();
     }
 
     private void TryQuit()

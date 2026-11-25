@@ -275,6 +275,12 @@ internal sealed class AgentConnection : IDisposable
         return Send(MessageType.SetRestrictions, p);
     }
     public Task RemoveGames() => Send(MessageType.RemoveGames, new { });
+    public Task UpdateNow() => Send(MessageType.UpdateNow, new { });
+
+    /// <summary>Version de l'agent (annoncée à la découverte).</summary>
+    public Version? AgentVersion => AppVersion.Parse(Info.AgentVersion);
+    /// <summary>L'agent a une version plus ancienne que la console.</summary>
+    public bool IsOutdated => AgentVersion is { } v && v < AppVersion.Running;
     public Task StartBroadcast(BroadcastStartPayload p) => Send(MessageType.BroadcastStart, p);
     public Task StopBroadcast() => Send(MessageType.BroadcastStop, new { });
 

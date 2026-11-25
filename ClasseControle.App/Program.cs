@@ -40,6 +40,13 @@ public static class Program
             // Un seul agent par session Windows.
             _agentMutex = new Mutex(initiallyOwned: true, "ClasseControle.Agent.SingleInstance", out bool created);
             if (!created) return 0;
+            // Avant un redémarrage sur une nouvelle version, l'agent libère l'instance unique.
+            ClasseControle.Common.AppRuntime.ReleaseSingleInstance = () =>
+            {
+                try { _agentMutex?.ReleaseMutex(); } catch { }
+                _agentMutex?.Dispose();
+                _agentMutex = null;
+            };
             return AppBuilder.Configure<ClasseControle.Agent.App>().UsePlatformDetect().LogToTrace()
                 .StartWithClassicDesktopLifetime(args);
         }
