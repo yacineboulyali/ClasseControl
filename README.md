@@ -127,9 +127,14 @@ se compile avec `installer\build.ps1` (voir « Compilation »). Liste complète 
 
 ```
 ClasseControle.App       Application unique ClasseControle.exe : choix du mode, lancement
-ClasseControle.Common    Protocole réseau partagé (messages + encodage fil)
-ClasseControle.Agent     Mode élève   (bibliothèque : Avalonia + API Windows P/Invoke)
-ClasseControle.Console   Mode prof    (bibliothèque : Avalonia)
+ClasseControle.Common    Protocole réseau, capture d'écran, document partagé (OT),
+                         catalogue des restrictions, version / mises à jour
+ClasseControle.Agent     Mode élève   (bibliothèque : Avalonia + API Windows)
+ClasseControle.Console   Mode prof    (bibliothèque : Avalonia, ruban, vignettes…)
+ClasseControle.Shared    Rendu des annotations, commun à la console et à l'agent
+installer/               Installateur Inno Setup + scripts PowerShell (tâches
+                         planifiées, pare-feu, jeux Windows, mise à jour auto)
+.github/workflows/       Publication automatique d'une version sur GitHub
 ```
 
 - **Découverte** : broadcast UDP (port 5401), filtré par un *code de salle*.
@@ -238,8 +243,8 @@ Un seul installateur ; au premier écran on choisit le **type de poste** :
 
 | Choix | Ce qui est installé |
 |---|---|
-| **Poste du professeur** | La console, avec raccourcis menu Démarrer et Bureau |
-| **Poste élève** | Uniquement l'agent, **sans aucun raccourci** : il démarre seul à chaque ouverture de session (tâche planifiée cachée, relancée automatiquement) et n'apparaît que dans la zone de notification. Le code de salle est demandé pendant l'installation. Les règles du pare-feu sont créées automatiquement. |
+| **Poste du professeur** | `ClasseControle.exe` en mode console, avec raccourcis menu Démarrer et Bureau |
+| **Poste élève** | `ClasseControle.exe` en mode agent, **sans aucun raccourci** : il démarre seul à chaque ouverture de session (tâche planifiée cachée, relancée automatiquement) et n'apparaît que dans la zone de notification. Le code de salle est demandé pendant l'installation. Les règles du pare-feu sont créées automatiquement. |
 
 **Mise à jour automatique (option cochée par défaut, professeur et élève)** : une tâche
 planifiée Windows (compte SYSTEM) vérifie toutes les heures et au démarrage la dernière
@@ -259,6 +264,8 @@ ClasseControle-Setup.exe /VERYSILENT /ROLE=eleve /ROOM=CLASSE
 ClasseControle-Setup.exe /VERYSILENT /ROLE=prof
 rem Poste élève sans supprimer les jeux :
 ClasseControle-Setup.exe /VERYSILENT /ROLE=eleve /ROOM=CLASSE /MERGETASKS="!supprjeux"
+rem Sans mise à jour automatique :
+ClasseControle-Setup.exe /VERYSILENT /ROLE=eleve /ROOM=CLASSE /MERGETASKS="!majauto"
 ```
 
 Pour construire l'installateur (sous Windows, avec le SDK .NET 8 et
@@ -275,12 +282,13 @@ powershell -ExecutionPolicy Bypass -File installer\build.ps1
 
 ## Compilation
 
-Nécessite le SDK .NET 8.
+Nécessite le SDK .NET 8 (cible `net8.0-windows10.0.19041.0` pour l'agent et
+l'application ; se compile aussi depuis Linux).
 
 ```bash
 # Application unique (exe autonome, console + agent)
 dotnet publish ClasseControle.App/ClasseControle.App.csproj \
-  -c Release -r win-x64 --self-contained true \
+  -c Release -r win-x64 --self-contained true -p:Version=1.11.0 \
   -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true \
   -p:EnableCompressionInSingleFile=true -o publish/app
 ```
@@ -301,13 +309,25 @@ RoomCode=CLASSE          # doit être identique à celui de la console
 DisplayName=NOM-DU-PC    # nom affiché dans la console
 ```
 
-## Pistes v1.5+
+## Sécurité
 
-- Chiffrement TLS du canal de contrôle + mot de passe fort
-- Service Windows « gardien » qui relance l'agent + déploiement MSI/GPO
-- Contrôle des imprimantes et des clés USB, planificateur de travaux
+- Le **code de salle** sert de mot de passe entre la console et les agents :
+  choisissez-en un propre à votre salle et gardez-le pour vous.
+- Les échanges se font sur le réseau local (UDP 5401, TCP 5402), non chiffrés.
+- Les mises à jour automatiques n'installent que la version officielle publiée
+  sur ce dépôt GitHub (HTTPS), après vérification de la taille et de la version.
+- Ctrl+Alt+Suppr reste toujours géré par Windows.
+
+## Historique
+
+Voir [CHANGELOG.md](CHANGELOG.md).
+
+## Pistes futures
+
+- Chiffrement TLS du canal de contrôle
+- Contrôle des imprimantes et des clés USB
+- Planificateur de travaux (devoirs à rendre, minuterie de séance)
 - Blocage des sites au niveau réseau (proxy / DNS) en complément du blocage par titre
-- Sondages / quiz rapides envoyés à la classe
 
 ## Licence
 

@@ -75,7 +75,7 @@ switch / même sous-réseau).
   3. Cliquer « 🔍 Rechercher les postes ».
      → Les postes élèves apparaissent sous forme de cartes.
 
-  NOUVELLE INTERFACE (v1.7) : ruban à onglets en haut, barre d'icônes
+  INTERFACE : ruban à onglets en haut, barre d'icônes
   à gauche, vignettes des élèves au centre.
     • Clic sur une vignette = la sélectionner (Ctrl+clic : plusieurs,
       Échap ou clic dans le vide : tout désélectionner).
