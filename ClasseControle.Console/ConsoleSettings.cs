@@ -36,6 +36,8 @@ internal sealed class ConsoleSettings
         new() { Name = "Navigateur (Edge)", Target = "msedge" },
     };
     public List<string> AllowedSites { get; set; } = new();
+    /// <summary>Ordre des vignettes choisi par glisser-déposer (noms des postes).</summary>
+    public List<string> TileOrder { get; set; } = new();
 
     private static string Dir =>
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Classe_controle");

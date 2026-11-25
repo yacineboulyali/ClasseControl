@@ -23,7 +23,7 @@ public static class Net
 
 public static class AgentInfo
 {
-    public const string Version = "1.6.0";
+    public const string Version = "1.7.0";
 }
 
 /// <summary>Types de messages échangés sur le canal de contrôle TCP.</summary>
@@ -53,6 +53,8 @@ public enum MessageType
     Reward = 71,          // récompense (étoiles) donnée / retirée à l'élève
     StudentDesktop = 72,  // action sur le bureau élève (réduire / fermer les fenêtres)
     InternetBlock = 73,   // couper / rétablir l'accès à Internet (le réseau local reste joignable)
+    SetMute = 74,         // couper / rétablir le son des applications de l'élève
+    AppsWatch = 77,       // démarrer / arrêter l'envoi de la liste des applications ouvertes
     Survey = 75,          // sondage rapide envoyé aux élèves
     SurveyClose = 76,     // fin du sondage
     SetRestrictions = 70, // liste d'applications / sites interdits
@@ -69,6 +71,7 @@ public enum MessageType
     StudentLogin = 112,   // l'élève s'identifie (nom complet) pour la séance
     Chat = 120,           // discussion professeur ↔ élève (dans les deux sens)
     SurveyAnswer = 121,   // réponse de l'élève à un sondage
+    AppsList = 122,       // applications ouvertes sur le poste élève
 
     // --- Élève -> Prof ---
     HelloAck = 1,         // réponse à Hello (accepté/refusé)
@@ -348,4 +351,33 @@ public sealed class SurveyClosePayload
 public sealed class InternetBlockPayload
 {
     public bool Blocked { get; set; }
+}
+
+public sealed class MutePayload
+{
+    public bool Muted { get; set; }
+}
+
+public sealed class AppsWatchPayload
+{
+    public bool Enabled { get; set; }
+}
+
+/// <summary>Une application ouverte (fenêtre visible) sur le poste élève.</summary>
+public sealed class AppInfo
+{
+    public string ProcessName { get; set; } = "";
+    /// <summary>Nom lisible (description du fichier, ex. « Microsoft Word »).</summary>
+    public string Name { get; set; } = "";
+    /// <summary>Titre de la fenêtre (ex. « Rapport.docx - Word »).</summary>
+    public string Title { get; set; } = "";
+    /// <summary>Application au premier plan : celle sur laquelle l'élève travaille.</summary>
+    public bool IsActive { get; set; }
+    /// <summary>Icône PNG 32×32, envoyée une seule fois par application (null ensuite).</summary>
+    public byte[]? Icon { get; set; }
+}
+
+public sealed class AppsListPayload
+{
+    public List<AppInfo> Apps { get; set; } = new();
 }

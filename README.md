@@ -38,6 +38,7 @@ complémentaires » → « Exécuter quand même ».
 
 | Version | Téléchargements |
 |---|---|
+| **1.7.0** — applications ouvertes, son coupé, glisser-déposer, contrôle direct | [Installateur](https://github.com/yacineboulyali/ClasseControl/releases/download/v1.7.0/ClasseControle-Setup.exe) · [ClasseControle.exe](https://github.com/yacineboulyali/ClasseControl/releases/download/v1.7.0/ClasseControle.exe) · [Portable (.zip)](https://github.com/yacineboulyali/ClasseControl/releases/download/v1.7.0/ClasseControle-portable.zip) · [Notes](https://github.com/yacineboulyali/ClasseControl/releases/tag/v1.7.0) |
 | **1.6.0** — application unique (prof + élève) | [Installateur](https://github.com/yacineboulyali/ClasseControl/releases/download/v1.6.0/ClasseControle-Setup.exe) · [ClasseControle.exe](https://github.com/yacineboulyali/ClasseControl/releases/download/v1.6.0/ClasseControle.exe) · [Portable (.zip)](https://github.com/yacineboulyali/ClasseControl/releases/download/v1.6.0/ClasseControle-portable.zip) · [Notes](https://github.com/yacineboulyali/ClasseControl/releases/tag/v1.6.0) |
 | **1.5.0** — couper Internet, documentation illustrée | [Installateur](https://github.com/yacineboulyali/ClasseControl/releases/download/v1.5.0/ClasseControle-Setup.exe) · [Console](https://github.com/yacineboulyali/ClasseControl/releases/download/v1.5.0/ClasseControle.Console.exe) · [Agent](https://github.com/yacineboulyali/ClasseControl/releases/download/v1.5.0/ClasseControle.Agent.exe) · [Portable (.zip)](https://github.com/yacineboulyali/ClasseControl/releases/download/v1.5.0/ClasseControle-portable.zip) · [Notes](https://github.com/yacineboulyali/ClasseControl/releases/tag/v1.5.0) |
 | 1.4 — interface à ruban, sondages, étoiles | [Code source (.zip)](https://github.com/yacineboulyali/ClasseControl/archive/1f3f734.zip) |
@@ -57,6 +58,12 @@ se compile avec `installer\build.ps1` (voir « Compilation »). Liste complète 
 
 ![Vue générale de la console](docs/images/console-vue-generale.png)
 *Vue générale : ruban de commandes en haut, barre latérale à gauche, une vignette par poste avec l'écran de l'élève en direct, son nom, ses étoiles et ses badges (« Aide », « Verrouillé », « Internet coupé »). Le zoom des vignettes est en bas à droite.*
+
+![Applications ouvertes](docs/images/console-applications-ouvertes.png)
+*Applications ouvertes : le bouton de la barre latérale partage l'écran ; en bas, chaque poste avec l'élève, l'icône et le titre de l'application sur laquelle il travaille, et ses autres applications (clic droit sur une icône : fermer l'application). Les badges « Son coupé » indiquent les postes dont le son est coupé.*
+
+![Glisser-déposer les vignettes](docs/images/glisser-deposer.gif)
+*Glisser-déposer : on déplace une vignette pour reproduire le plan de la salle ; l'ordre est mémorisé pour les séances suivantes.*
 
 ![Démarrer la séance](docs/images/demarrer-seance.gif)
 *Démarrer la séance : le professeur donne un titre, chaque élève saisit son nom sur son poste et les noms apparaissent un à un sur les vignettes.*
@@ -177,6 +184,12 @@ ClasseControle.Console   Mode prof    (bibliothèque : Avalonia)
   compléter) ; suivi en direct et export des travaux. La fusion des saisies
   simultanées repose sur une transformation opérationnelle testée (chaque
   phrase reste d'un seul tenant)
+- 🖱 **Contrôler** un poste en un clic (ruban ou clic droit) : souris et clavier de l'élève
+- 🧩 **Applications ouvertes** : bouton de la barre latérale qui partage l'écran en deux ;
+  en bas, pour chaque poste (PC), l'élève, l'**icône et le titre de l'application sur
+  laquelle il travaille** et ses autres applications (clic droit : fermer)
+- 🔇 **Couper le son** des applications des élèves (les annonces du professeur restent audibles)
+- ↔ **Glisser-déposer les vignettes** pour reproduire le plan de la salle (ordre mémorisé)
 - 🌙 **Écran noir** (attirer l'attention), distinct du verrouillage
 - 📵 **Couper Internet** sur la classe ou la sélection, le réseau de la salle
   restant joignable (pare-feu Windows si l'agent est administrateur, sinon

@@ -31,6 +31,11 @@ internal sealed class StudentTile
     private readonly TextBlock _overlayText = new() { Foreground = Brushes.White, FontSize = 13, FontWeight = FontWeight.SemiBold, HorizontalAlignment = HorizontalAlignment.Center };
     private readonly Border _handBadge;
     private readonly Border _netBadge;
+    private readonly Border _muteBadge;
+    private readonly Image _activeIcon = new() { Width = 16, Height = 16, Margin = new Thickness(0, 0, 5, 0), VerticalAlignment = VerticalAlignment.Center, IsVisible = false };
+    private Avalonia.Media.Imaging.Bitmap? _activeIconBmp;
+    private string _activeIconFor = "";
+    private Point? _pressAt;
     private readonly TextBlock _footStudent = new() { FontSize = 11.5, FontWeight = FontWeight.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis };
     private readonly TextBlock _footUser = new() { FontSize = 11, Foreground = Palette.Muted, TextTrimming = TextTrimming.CharacterEllipsis, HorizontalAlignment = HorizontalAlignment.Center };
     private readonly TextBlock _footMachine = new() { FontSize = 11, Foreground = Palette.Muted, TextTrimming = TextTrimming.CharacterEllipsis, HorizontalAlignment = HorizontalAlignment.Right };
@@ -46,6 +51,8 @@ internal sealed class StudentTile
     public event Action<StudentTile, bool>? Clicked;      // bool = Ctrl/Maj enfoncé
     public event Action<StudentTile>? DoubleClicked;
     public event Action<StudentTile, Control>? ContextRequested;
+    /// <summary>Le professeur fait glisser la vignette (pour la déplacer).</summary>
+    public event Action<StudentTile, PointerEventArgs>? DragRequested;
 
     public StudentTile(AgentConnection conn, double width)
     {
@@ -118,10 +125,30 @@ internal sealed class StudentTile
                 },
             },
         };
+        _muteBadge = new Border
+        {
+            Background = Palette.Navy,
+            CornerRadius = new CornerRadius(12),
+            Padding = new Thickness(7, 3),
+            Margin = new Thickness(6),
+            HorizontalAlignment = HorizontalAlignment.Right,
+            VerticalAlignment = VerticalAlignment.Bottom,
+            IsVisible = false,
+            Child = new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                Spacing = 4,
+                Children =
+                {
+                    Glyph.Make(Glyph.SoundOff, 13, Brushes.White),
+                    new TextBlock { Text = "Son coupé", Foreground = Brushes.White, FontSize = 11, FontWeight = FontWeight.Bold },
+                },
+            },
+        };
         _thumbBox = new Border
         {
             Background = new SolidColorBrush(Color.FromRgb(30, 38, 52)),
-            Child = new Grid { Children = { _thumb, _overlay, _handBadge, _netBadge } },
+            Child = new Grid { Children = { _thumb, _overlay, _handBadge, _netBadge, _muteBadge } },
         };
 
         var cardContent = new DockPanel();
@@ -142,8 +169,9 @@ internal sealed class StudentTile
 
         var foot = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,*,*,*"), Margin = new Thickness(2, 4, 2, 0) };
         foot.Children.Add(_signal);
-        Grid.SetColumn(_footStudent, 1);
-        foot.Children.Add(_footStudent);
+        var studentCell = new StackPanel { Orientation = Orientation.Horizontal, Children = { _activeIcon, _footStudent } };
+        Grid.SetColumn(studentCell, 1);
+        foot.Children.Add(studentCell);
         Grid.SetColumn(_footUser, 2);
         foot.Children.Add(_footUser);
         Grid.SetColumn(_footMachine, 3);
@@ -170,9 +198,23 @@ internal sealed class StudentTile
                 return;
             }
             if (e.ClickCount >= 2) DoubleClicked?.Invoke(this);
-            else Clicked?.Invoke(this, e.KeyModifiers.HasFlag(KeyModifiers.Control) || e.KeyModifiers.HasFlag(KeyModifiers.Shift));
+            else
+            {
+                _pressAt = e.GetPosition(Root);
+                Clicked?.Invoke(this, e.KeyModifiers.HasFlag(KeyModifiers.Control) || e.KeyModifiers.HasFlag(KeyModifiers.Shift));
+            }
             e.Handled = true;
         };
+        // Glisser : au-delà de quelques pixels avec le bouton gauche enfoncé, on déplace la vignette.
+        Root.PointerMoved += (_, e) =>
+        {
+            if (_pressAt is not { } start || !e.GetCurrentPoint(Root).Properties.IsLeftButtonPressed) return;
+            var p = e.GetPosition(Root);
+            if (Math.Abs(p.X - start.X) + Math.Abs(p.Y - start.Y) < 10) return;
+            _pressAt = null;
+            DragRequested?.Invoke(this, e);
+        };
+        Root.PointerReleased += (_, _) => _pressAt = null;
 
         conn.FrameReceived += OnFrame;
         SetWidth(width);
@@ -250,6 +292,8 @@ internal sealed class StudentTile
 
         _handBadge.IsVisible = Conn.IsHandRaised;
         _netBadge.IsVisible = Conn.IsConnected && Conn.IsInternetBlocked;
+        _muteBadge.IsVisible = Conn.IsConnected && Conn.IsMuted;
+        UpdateActiveApp();
         if (!Conn.IsConnected)
         {
             ShowOverlay(Glyph.Cancel, Status.Length > 0 ? Status : "Hors ligne");
@@ -274,5 +318,30 @@ internal sealed class StudentTile
         _overlayGlyph.Content = Glyph.Make(glyph, 34, Brushes.White);
         _overlayText.Text = text;
         _overlay.IsVisible = true;
+    }
+
+    /// <summary>Icône de l'application au premier plan chez l'élève (si la liste des applications est suivie).</summary>
+    public void UpdateActiveApp()
+    {
+        var active = Conn.IsConnected ? Conn.Apps.FirstOrDefault(a => a.IsActive) : null;
+        string key = active?.ProcessName ?? "";
+        if (key != _activeIconFor)
+        {
+            _activeIconFor = key;
+            _activeIconBmp?.Dispose();
+            _activeIconBmp = null;
+            if (active != null && Conn.IconFor(key) is { } png)
+                try { using var ms = new MemoryStream(png); _activeIconBmp = new Avalonia.Media.Imaging.Bitmap(ms); } catch { }
+            _activeIcon.Source = _activeIconBmp;
+        }
+        _activeIcon.IsVisible = _activeIconBmp != null;
+        ToolTip.SetTip(_activeIcon, active == null ? null : $"Travaille sur : {active.Name}\n{active.Title}");
+    }
+
+    /// <summary>Repère d'insertion pendant un glisser-déposer : -1 avant, +1 après, 0 aucun.</summary>
+    public void SetDropHint(int side)
+    {
+        Root.BorderBrush = side == 0 ? null : Palette.Accent;
+        Root.BorderThickness = side < 0 ? new Thickness(4, 0, 0, 0) : side > 0 ? new Thickness(0, 0, 4, 0) : new Thickness(0);
     }
 }

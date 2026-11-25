@@ -21,6 +21,13 @@ internal sealed class AgentConnection : IDisposable
     public bool IsHandRaised { get; private set; }
     public bool IsBlanked { get; set; }
     public bool IsInternetBlocked { get; set; }
+    public bool IsMuted { get; set; }
+
+    /// <summary>Applications ouvertes sur le poste (dernière liste reçue), l'active en premier.</summary>
+    public IReadOnlyList<AppInfo> Apps { get; private set; } = Array.Empty<AppInfo>();
+    /// <summary>Icônes PNG reçues, par nom de processus (envoyées une fois par l'agent).</summary>
+    public Dictionary<string, byte[]> AppIcons { get; } = new(StringComparer.OrdinalIgnoreCase);
+    public event Action<AgentConnection>? AppsChanged;
     /// <summary>Étoiles (récompenses) obtenues pendant la séance.</summary>
     public int Stars { get; set; }
     /// <summary>Nom saisi par l'élève en début de séance (vide s'il ne s'est pas identifié).</summary>
@@ -106,6 +113,18 @@ internal sealed class AgentConnection : IDisposable
                     var c = Wire.Read<GroupChatPayload>(env);
                     if (c != null) GroupChatReceived?.Invoke(this, c);
                 }
+                else if (env.Type == MessageType.AppsList)
+                {
+                    var al = Wire.Read<AppsListPayload>(env);
+                    if (al != null)
+                    {
+                        lock (AppIcons)
+                            foreach (var a in al.Apps)
+                                if (a.Icon is { Length: > 0 }) AppIcons[a.ProcessName] = a.Icon;
+                        Apps = al.Apps;
+                        AppsChanged?.Invoke(this);
+                    }
+                }
                 else if (env.Type == MessageType.Chat)
                 {
                     var m = Wire.Read<ChatPayload>(env);
@@ -138,6 +157,23 @@ internal sealed class AgentConnection : IDisposable
 
     public Task Lock(string message, byte[]? image = null) =>
         Send(MessageType.Lock, new LockPayload { Message = message, ImageJpeg = image });
+    public Task SetMute(bool muted)
+    {
+        IsMuted = muted;
+        return Send(MessageType.SetMute, new MutePayload { Muted = muted });
+    }
+
+    public Task WatchApps(bool enabled)
+    {
+        if (!enabled) { Apps = Array.Empty<AppInfo>(); lock (AppIcons) AppIcons.Clear(); }
+        return Send(MessageType.AppsWatch, new AppsWatchPayload { Enabled = enabled });
+    }
+
+    public byte[]? IconFor(string processName)
+    {
+        lock (AppIcons) return AppIcons.TryGetValue(processName, out var b) ? b : null;
+    }
+
     public Task SetInternet(bool blocked)
     {
         IsInternetBlocked = blocked;

@@ -21,10 +21,11 @@ internal sealed class RemoteViewWindow : Window
     private Bitmap? _current;
     private int _srcW = 1, _srcH = 1;
 
-    public RemoteViewWindow(AgentConnection conn)
+    /// <param name="control">Ouvre directement en prise de contrôle (souris + clavier).</param>
+    public RemoteViewWindow(AgentConnection conn, bool control = false)
     {
         _conn = conn;
-        Title = $"Écran — {conn.Title}";
+        Title = (control ? "Contrôle — " : "Écran — ") + conn.Title;
         Width = 1000;
         Height = 650;
         Background = Brushes.Black;
@@ -41,7 +42,10 @@ internal sealed class RemoteViewWindow : Window
         {
             Content = new TextBlock { Text = "Prendre le contrôle (souris + clavier)", Foreground = Brushes.White },
             Margin = new Thickness(12, 0, 0, 0),
+            IsChecked = control,
         };
+        _controlToggle.IsCheckedChanged += (_, _) =>
+            Title = (_controlToggle.IsChecked == true ? "Contrôle — " : "Écran — ") + conn.Title;
 
         var toolbar = new StackPanel
         {

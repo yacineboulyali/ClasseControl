@@ -151,6 +151,7 @@ internal sealed class AgentServer
     {
         // On ne laisse jamais un poste sans Internet quand l'agent s'arrête.
         try { if (InternetBlocker.IsBlocked) InternetBlocker.Unblock(); } catch { }
+        try { if (AudioMuter.IsMuted) AudioMuter.SetMuted(false); } catch { }
         _cts.Cancel();
         _restrictions.Dispose();
         _audio.Dispose();
@@ -227,6 +228,7 @@ internal sealed class AgentServer
         CancellationTokenSource? streamCts = null;
         Session? session = null;
         bool broadcasting = false;
+        CancellationTokenSource? appsCts = null;
 
         try
         {
@@ -446,6 +448,27 @@ internal sealed class AgentServer
                         catch { }
                         break;
 
+                    case MessageType.SetMute:
+                        var mu = Wire.Read<MutePayload>(env) ?? new MutePayload();
+                        if (mu.Muted != AudioMuter.IsMuted)
+                        {
+                            AudioMuter.SetMuted(mu.Muted);
+                            _host.ShowMessage(mu.Muted ? "Son coupé" : "Son rétabli",
+                                mu.Muted ? "Le professeur a coupé le son des applications." : "Le son des applications est rétabli.", 4);
+                        }
+                        break;
+
+                    case MessageType.AppsWatch:
+                        var aw = Wire.Read<AppsWatchPayload>(env) ?? new AppsWatchPayload();
+                        appsCts?.Cancel();
+                        appsCts = null;
+                        if (aw.Enabled)
+                        {
+                            appsCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+                            _ = Task.Run(() => AppsLoop(stream, writeLock, appsCts.Token));
+                        }
+                        break;
+
                     case MessageType.Survey:
                         var sv = Wire.Read<SurveyPayload>(env);
                         if (sv == null) break;
@@ -470,6 +493,7 @@ internal sealed class AgentServer
         finally
         {
             streamCts?.Cancel();
+            appsCts?.Cancel();
             if (session != null) lock (_sessions) _sessions.Remove(session);
             // Si le professeur se déconnecte pendant une diffusion, on rend la main à l'élève.
             if (broadcasting) _host.HideBroadcast();
@@ -521,6 +545,44 @@ internal sealed class AgentServer
             catch (OperationCanceledException) { break; }
             catch { break; }
             await Task.Delay(delay, ct).ContinueWith(_ => { }, TaskScheduler.Default);
+        }
+    }
+
+    /// <summary>
+    /// Envoie la liste des applications ouvertes toutes les 2 s si elle a changé (et au moins
+    /// toutes les 15 s). Chaque icône n'est envoyée qu'une fois par abonnement.
+    /// </summary>
+    private static async Task AppsLoop(NetworkStream stream, SemaphoreSlim writeLock, CancellationToken ct)
+    {
+        var iconsSent = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        string last = "";
+        var lastSend = DateTime.MinValue;
+        while (!ct.IsCancellationRequested)
+        {
+            try
+            {
+                var apps = AppWatcher.Snapshot();
+                string sig = string.Join("\n", apps.Select(a => $"{a.ProcessName}|{a.Title}|{a.IsActive}"));
+                if (sig != last || DateTime.UtcNow - lastSend > TimeSpan.FromSeconds(15))
+                {
+                    var payload = new AppsListPayload();
+                    foreach (var a in apps)
+                    {
+                        payload.Apps.Add(new AppInfo
+                        {
+                            ProcessName = a.ProcessName, Name = a.Name, Title = a.Title, IsActive = a.IsActive,
+                            Icon = a.Icon != null && iconsSent.Add(a.ProcessName) ? a.Icon : null,
+                        });
+                    }
+                    await SendLocked(stream, writeLock, MessageType.AppsList, payload, ct);
+                    last = sig;
+                    lastSend = DateTime.UtcNow;
+                }
+            }
+            catch (OperationCanceledException) { break; }
+            catch (IOException) { break; }
+            catch { }
+            await Task.Delay(2000, ct).ContinueWith(_ => { }, TaskScheduler.Default);
         }
     }
 

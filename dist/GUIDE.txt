@@ -1,5 +1,5 @@
 ╔══════════════════════════════════════════════════════════════════╗
-║   CLASSE_CONTROLE — Supervision de salle informatique (v1.6)       ║
+║   CLASSE_CONTROLE — Supervision de salle informatique (v1.7)       ║
 ║   Équivalent libre et original de type "NetSupport School"         ║
 ╚══════════════════════════════════════════════════════════════════╝
 
@@ -65,7 +65,7 @@ switch / même sous-réseau).
   3. Cliquer « 🔍 Rechercher les postes ».
      → Les postes élèves apparaissent sous forme de cartes.
 
-  NOUVELLE INTERFACE (v1.6) : ruban à onglets en haut, barre d'icônes
+  NOUVELLE INTERFACE (v1.7) : ruban à onglets en haut, barre d'icônes
   à gauche, vignettes des élèves au centre.
     • Clic sur une vignette = la sélectionner (Ctrl+clic : plusieurs,
       Échap ou clic dans le vide : tout désélectionner).
@@ -108,6 +108,16 @@ switch / même sous-réseau).
         même temps) et une discussion. Vous suivez tout en direct,
         pouvez écrire à une équipe, et « 💾 Exporter les travaux ».
      ⚙ Paramètres → texte et image de l'écran de verrouillage.
+     🖱 Contrôler → sélectionnez un poste puis « Contrôler » (ou clic droit
+        sur la vignette) : vous pilotez sa souris et son clavier.
+     🔇 Couper le son (groupe Son) → coupe le son des applications des
+        élèves ; vos annonces restent audibles. Recliquez pour rétablir.
+     🧩 Applications ouvertes (barre de gauche) → l'écran se partage en
+        deux : en bas, chaque poste avec l'application sur laquelle
+        l'élève travaille (icône + titre) et ses autres applications.
+        Clic droit sur une icône : fermer cette application.
+     ↔ Glisser-déposer : faites glisser une vignette pour la déplacer
+        (reproduisez le plan de la salle) ; l'ordre est mémorisé.
      📵 Couper Internet (onglet Classe, groupe Accès web) → coupe
         Internet sur la classe ou les postes sélectionnés ; le réseau
         de la salle reste disponible. Recliquez (« Rétablir Internet »)
@@ -168,4 +178,4 @@ switch / même sous-réseau).
   • Outil destiné à un usage pédagogique encadré, sur des postes dont
     vous avez la responsabilité. Informez les utilisateurs.
 
-Bon cours !  —  Classe_controle v1.6
+Bon cours !  —  Classe_controle v1.7

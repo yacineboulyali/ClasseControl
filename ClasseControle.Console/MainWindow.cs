@@ -40,7 +40,12 @@ internal sealed class MainWindow : Window
 
     private Button _scanBtn = null!, _lessonBtn = null!, _showBtn = null!, _announceBtn = null!,
                    _webBtn = null!, _helpBtn = null!, _liveBtn = null!, _sideAnnounce = null!,
-                   _netBtn = null!, _sideNet = null!;
+                   _netBtn = null!, _sideNet = null!, _muteBtn = null!, _sideApps = null!;
+    private bool _muteForClass;
+    private AppsPanel _appsPanel = null!;
+    private Grid _split = null!;
+    private bool _appsVisible;
+    private const string DragFormat = "classecontrole-tile";
     /// <summary>Coupure d'Internet décidée pour toute la classe (réappliquée aux postes qui se reconnectent).</summary>
     private bool _internetCutForClass;
     private readonly Dictionary<int, Button> _sideTabs = new();
@@ -158,10 +163,39 @@ internal sealed class MainWindow : Window
             if (e.GetCurrentPoint(workspace).Properties.IsLeftButtonPressed) SelectWhere(_ => false);
         };
 
+        // Zone principale partagée : vignettes en haut, applications ouvertes en bas (masquable).
+        _appsPanel = new AppsPanel(
+            () => _tiles.Values.Select(t => t.Conn).ToList(),
+            async (c, proc) => await ApplyAsync(new[] { c }, "Fermeture d'application", x => x.CloseApp(proc), proc),
+            c => ViewTargets(new[] { c })) { IsVisible = false };
+        _appsPanel.CloseRequested += () => Run(() => ShowAppsAsync(false));
+        var splitter = new GridSplitter
+        {
+            Height = 6, Background = Palette.Line, IsVisible = false,
+            HorizontalAlignment = HorizontalAlignment.Stretch, ResizeDirection = GridResizeDirection.Rows,
+        };
+        _split = new Grid { RowDefinitions = new RowDefinitions("*,0,0") };
+        _split.Children.Add(workspace);
+        Grid.SetRow(splitter, 1);
+        _split.Children.Add(splitter);
+        Grid.SetRow(_appsPanel, 2);
+        _split.Children.Add(_appsPanel);
+
+        // Glisser-déposer : lâcher une vignette dans le vide la place à la fin.
+        DragDrop.SetAllowDrop(_grid, true);
+        _grid.AddHandler(DragDrop.DragOverEvent, (_, e) => e.DragEffects = e.Data.Contains(DragFormat) ? DragDropEffects.Move : DragDropEffects.None);
+        _grid.AddHandler(DragDrop.DropEvent, (_, e) =>
+        {
+            if (e.Handled || e.Data.Get(DragFormat) is not string key || !_tiles.TryGetValue(key, out var src)) return;
+            _grid.Children.Remove(src.Root);
+            _grid.Children.Add(src.Root);
+            SaveTileOrder();
+        });
+
         var body = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,*") };
         body.Children.Add(sidebar);
-        Grid.SetColumn(workspace, 1);
-        body.Children.Add(workspace);
+        Grid.SetColumn(_split, 1);
+        body.Children.Add(_split);
 
         var statusBar = new Border
         {
@@ -214,6 +248,7 @@ internal sealed class MainWindow : Window
             ("Arrêter la diffusion", () => Run(StopBroadcastAsync))));
         var student = Ribbon.Group("Élève",
             Ribbon.Big(Glyph.View, "Voir l'élève", () => ViewTargets(Targets())),
+            Ribbon.Big(Glyph.Control, "Contrôler", () => ViewTargets(Targets(), control: true)),
             Ribbon.Big(Glyph.Folder, "Transfert de fichiers", () => Run(() => SendFileAsync(Targets()))),
             Ribbon.Big(Glyph.Lock, "Verrouiller", () => Run(() => LockAsync(Targets()))),
             Ribbon.Big(Glyph.Unlock, "Déverrouiller", () => Run(() => UnlockAsync(Targets()))),
@@ -234,6 +269,8 @@ internal sealed class MainWindow : Window
             ("Ouvrir un site sur les postes…", () => Run(OpenWebsiteAsync))));
         _netBtn = Ribbon.Big(Glyph.WebOff, "Couper Internet", () => Run(() => ToggleInternetAsync(Targets())));
         var web = Ribbon.Group("Accès web", _webBtn, _netBtn);
+        _muteBtn = Ribbon.Big(Glyph.SoundOff, "Couper le son", () => Run(() => ToggleMuteAsync(Targets())));
+        var sound = Ribbon.Group("Son", _muteBtn);
 
         _announceBtn = Ribbon.Big(Glyph.Mic, "Annonce", () => Run(ToggleAnnounceAsync));
         _helpBtn = Ribbon.Big(Glyph.Help, "Demandes d'aide", menu: HelpMenu());
@@ -256,7 +293,7 @@ internal sealed class MainWindow : Window
                 Ribbon.Small(Glyph.Fit, "Ajuster à la fenêtre", FitToWindow)),
             _liveBtn);
 
-        AddTab("Classe", Ribbon.TabContent(room, lesson, student, web, communicate, thumbs));
+        AddTab("Classe", Ribbon.TabContent(room, lesson, student, web, sound, communicate, thumbs));
 
         // ---------------- Groupes ----------------
         AddTab("Groupes", Ribbon.TabContent(
@@ -366,6 +403,8 @@ internal sealed class MainWindow : Window
                 _sideAnnounce,
                 Item(Glyph.Globe, "Accès web et restrictions", () => Run(EditRestrictionsAsync)),
                 (_sideNet = Item(Glyph.WebOff, "Couper / rétablir Internet", () => Run(() => ToggleInternetAsync(Targets())))),
+                Item(Glyph.SoundOff, "Couper / rétablir le son", () => Run(() => ToggleMuteAsync(Targets()))),
+                (_sideApps = Item(Glyph.Apps, "Applications ouvertes sur les postes (partage l'écran)", () => Run(() => ShowAppsAsync(!_appsVisible)))),
                 Item(Glyph.Launch, "Ouvrir un site sur les postes", () => Run(OpenWebsiteAsync)),
                 Item(Glyph.List, "Liste de présence", OpenAttendance),
             },
@@ -534,6 +573,9 @@ internal sealed class MainWindow : Window
                 tile.Conn.IsInternetBlocked
                     ? Cmd(Glyph.Globe, "Rétablir Internet", () => Run(() => SetInternetAsync(targets, false)), false)
                     : Cmd(Glyph.WebOff, "Couper Internet", () => Run(() => SetInternetAsync(targets, true)), false),
+                tile.Conn.IsMuted
+                    ? Cmd(Glyph.Sound, "Rétablir le son", () => Run(() => SetMuteAsync(targets, false)), false)
+                    : Cmd(Glyph.SoundOff, "Couper le son", () => Run(() => SetMuteAsync(targets, true)), false),
             },
         };
         var main = new StackPanel
@@ -542,6 +584,7 @@ internal sealed class MainWindow : Window
             Children =
             {
                 Cmd(Glyph.View, "Voir l'élève", () => ViewTargets(targets)),
+                Cmd(Glyph.Control, "Contrôler", () => ViewTargets(targets, control: true)),
                 Cmd(Glyph.Folder, "Transfert de fichiers", () => Run(() => SendFileAsync(targets))),
                 Cmd(Glyph.Chat, "Discussion", () => OpenChat(targets)),
                 Cmd(Glyph.Message, "Message", () => Run(() => SendMessageAsync(targets))),
@@ -587,7 +630,7 @@ internal sealed class MainWindow : Window
         string who = targets.Count == 1 ? $"{targets[0].DisplayName} — {targets[0].Info.MachineName}" : $"{targets.Count} postes sélectionnés";
         flyout.Content = new StackPanel
         {
-            Width = 470,
+            Width = 560,
             Children =
             {
                 new TextBlock { Text = who, FontWeight = FontWeight.SemiBold, Margin = new Thickness(6, 0, 0, 4) },
@@ -625,7 +668,7 @@ internal sealed class MainWindow : Window
                 var conn = new AgentConnection(r);
                 var tile = new StudentTile(conn, TileWidth) { LessonTitle = _lesson?.Title ?? "" };
                 _tiles[key] = tile;
-                _grid.Children.Add(tile.Root);
+                _grid.Children.Insert(OrderedIndex(r.MachineName), tile.Root);
                 WireTile(tile);
                 if (await ConnectTileAsync(tile, code, teacher)) nouveaux++;
             }
@@ -651,6 +694,29 @@ internal sealed class MainWindow : Window
         tile.Clicked += OnTileClicked;
         tile.DoubleClicked += t => ViewTargets(new[] { t.Conn });
         tile.ContextRequested += ShowTileMenu;
+        tile.DragRequested += (t, e) => Run(() => DragTileAsync(t, e));
+        DragDrop.SetAllowDrop(tile.Root, true);
+        tile.Root.AddHandler(DragDrop.DragOverEvent, (_, e) =>
+        {
+            if (e.Data.Get(DragFormat) is not string key || key == tile.Conn.Key) { e.DragEffects = DragDropEffects.None; return; }
+            e.DragEffects = DragDropEffects.Move;
+            tile.SetDropHint(e.GetPosition(tile.Root).X < tile.Root.Bounds.Width / 2 ? -1 : 1);
+            e.Handled = true;
+        });
+        tile.Root.AddHandler(DragDrop.DragLeaveEvent, (_, _) => tile.SetDropHint(0));
+        tile.Root.AddHandler(DragDrop.DropEvent, (_, e) =>
+        {
+            tile.SetDropHint(0);
+            if (e.Data.Get(DragFormat) is not string key || key == tile.Conn.Key || !_tiles.TryGetValue(key, out var src)) return;
+            bool after = e.GetPosition(tile.Root).X >= tile.Root.Bounds.Width / 2;
+            _grid.Children.Remove(src.Root);
+            int idx = _grid.Children.IndexOf(tile.Root) + (after ? 1 : 0);
+            _grid.Children.Insert(Math.Clamp(idx, 0, _grid.Children.Count), src.Root);
+            SaveTileOrder();
+            e.Handled = true;
+            SetStatus($"{src.Conn.Info.MachineName} déplacé.");
+        });
+        conn.AppsChanged += _ => Dispatcher.UIThread.Post(() => { _appsPanel.Invalidate(); tile.UpdateActiveApp(); });
 
         conn.ConnectionChanged += (c, up) => Dispatcher.UIThread.Post(() =>
         {
@@ -680,6 +746,10 @@ internal sealed class MainWindow : Window
             try { await c.SetRestrictions(_restrictions); } catch { }
         if (_internetCutForClass || c.IsInternetBlocked)
             try { await c.SetInternet(true); } catch { }
+        if (_muteForClass || c.IsMuted)
+            try { await c.SetMute(true); } catch { }
+        if (_appsVisible)
+            try { await c.WatchApps(true); } catch { }
         if (_broadcaster.IsRunning)
             try { await _broadcaster.AddAsync(c); } catch { }
         if (_lesson != null)
@@ -762,6 +832,86 @@ internal sealed class MainWindow : Window
         var ordered = _tiles.Values.OrderBy(t => t.Conn.DisplayName, StringComparer.OrdinalIgnoreCase).ToList();
         _grid.Children.Clear();
         foreach (var t in ordered) _grid.Children.Add(t.Root);
+        SaveTileOrder();
+    }
+
+    // ---------- Glisser-déposer des vignettes ----------
+    private async Task DragTileAsync(StudentTile tile, PointerEventArgs e)
+    {
+        var data = new DataObject();
+        data.Set(DragFormat, tile.Conn.Key);
+        tile.Root.Opacity = 0.5;
+        try { await DragDrop.DoDragDrop(e, data, DragDropEffects.Move); }
+        finally
+        {
+            tile.Root.Opacity = 1;
+            foreach (var t in _tiles.Values) t.SetDropHint(0);
+        }
+    }
+
+    /// <summary>Mémorise l'ordre des vignettes (par nom de poste, stable même si l'adresse IP change).</summary>
+    private void SaveTileOrder()
+    {
+        var shown = _grid.Children.Select(c => _tiles.Values.FirstOrDefault(t => t.Root == c)?.Conn.Info.MachineName)
+            .Where(n => n != null).Cast<string>().ToList();
+        // Les postes absents aujourd'hui gardent leur place relative à la fin.
+        _settings.TileOrder = shown.Concat(_settings.TileOrder.Where(n => !shown.Contains(n, StringComparer.OrdinalIgnoreCase))).ToList();
+        _settings.Save();
+    }
+
+    /// <summary>Position d'un nouveau poste dans la grille, d'après l'ordre mémorisé.</summary>
+    private int OrderedIndex(string machine)
+    {
+        int rank = _settings.TileOrder.FindIndex(n => string.Equals(n, machine, StringComparison.OrdinalIgnoreCase));
+        if (rank < 0) return _grid.Children.Count;
+        for (int i = 0; i < _grid.Children.Count; i++)
+        {
+            var t = _tiles.Values.FirstOrDefault(x => x.Root == _grid.Children[i]);
+            if (t == null) continue;
+            int r = _settings.TileOrder.FindIndex(n => string.Equals(n, t.Conn.Info.MachineName, StringComparison.OrdinalIgnoreCase));
+            if (r < 0 || r > rank) return i;
+        }
+        return _grid.Children.Count;
+    }
+
+    // ---------- Applications ouvertes (écran partagé) ----------
+    private async Task ShowAppsAsync(bool show)
+    {
+        _appsVisible = show;
+        _appsPanel.IsVisible = show;
+        _split.Children.OfType<GridSplitter>().First().IsVisible = show;
+        _split.RowDefinitions = show ? new RowDefinitions("*,6,*") : new RowDefinitions("*,0,0");
+        SetState(_sideApps, show ? "on" : null);
+        foreach (var c in _tiles.Values.Select(t => t.Conn).Where(c => c.IsConnected))
+            try { await c.WatchApps(show); } catch { }
+        if (!show)
+        {
+            _appsPanel.ClearCache();
+            foreach (var t in _tiles.Values) t.UpdateActiveApp();
+        }
+        _appsPanel.Invalidate();
+        SetStatus(show ? "Applications ouvertes : liste mise à jour toutes les 2 secondes." : "Panneau des applications masqué.");
+    }
+
+    // ---------- Son ----------
+    private Task ToggleMuteAsync(IReadOnlyList<AgentConnection> targets)
+    {
+        bool allMuted = targets.Count > 0 && targets.All(t => t.IsMuted);
+        return SetMuteAsync(targets, !allMuted);
+    }
+
+    private async Task SetMuteAsync(IReadOnlyList<AgentConnection> targets, bool muted)
+    {
+        if (targets.Count == 0) { SetStatus("Aucun poste connecté."); return; }
+        foreach (var c in targets) { try { await c.SetMute(muted); } catch { } }
+        if (IsWholeClass(targets)) _muteForClass = muted;
+        Log(muted ? "Son coupé" : "Son rétabli", targets);
+        RefreshTiles(targets);
+        int n = _tiles.Values.Count(t => t.Conn.IsConnected && t.Conn.IsMuted);
+        SetBigLabel(_muteBtn, n > 0 ? $"Rétablir le son ({n})" : "Couper le son");
+        SetState(_muteBtn, n > 0 ? "live" : null);
+        SetStatus(muted ? $"Son coupé sur {targets.Count} poste(s) (les annonces du professeur restent audibles)."
+                        : $"Son rétabli sur {targets.Count} poste(s).");
     }
 
     // =====================================================================
@@ -799,14 +949,19 @@ internal sealed class MainWindow : Window
         RefreshTiles(targets);
     }
 
-    private void ViewTargets(IReadOnlyList<AgentConnection> targets)
+    private void ViewTargets(IReadOnlyList<AgentConnection> targets, bool control = false)
     {
-        var list = targets.Where(t => t.IsConnected).Take(4).ToList();
-        if (list.Count == 0) { SetStatus("Sélectionnez un poste connecté (double-clic sur une vignette)."); return; }
+        var list = targets.Where(t => t.IsConnected).Take(control ? 1 : 4).ToList();
+        if (list.Count == 0) { SetStatus("Sélectionnez un poste connecté (clic sur une vignette)."); return; }
+        if (control && targets.Count(t => t.IsConnected) > 1 && !targets.Any(t => _tiles.Values.Any(x => x.Conn == t && x.IsSelected)))
+        {
+            SetStatus("Sélectionnez le poste à contrôler (clic sur sa vignette), puis « Contrôler ».");
+            return;
+        }
         foreach (var c in list)
         {
-            new RemoteViewWindow(c).Show();
-            ActionLog.Add("Vue de l'écran", c.Info.MachineName);
+            new RemoteViewWindow(c, control).Show();
+            ActionLog.Add(control ? "Prise de contrôle" : "Vue de l'écran", c.Info.MachineName);
         }
     }
 
