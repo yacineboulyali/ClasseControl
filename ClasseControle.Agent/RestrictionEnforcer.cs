@@ -33,6 +33,10 @@ internal sealed class RestrictionEnforcer : IDisposable
     private readonly object _lock = new();
     private readonly Timer _timer;
     private RestrictionsPayload _current = new();
+    // Listes développées (catégories « @… » remplacées par leur contenu).
+    private HashSet<string> _appNames = new(StringComparer.OrdinalIgnoreCase);
+    private List<string> _storeGameTokens = new();
+    private List<string> _sites = new();
     private DateTime _lastSiteClose = DateTime.MinValue;
     private DateTime _lastAppNotice = DateTime.MinValue;
 
@@ -49,10 +53,22 @@ internal sealed class RestrictionEnforcer : IDisposable
 
     public void Apply(RestrictionsPayload p)
     {
+        var appsInput = (p.BlockedApps ?? new()).ToList();
+        bool storeGames = appsInput.Any(a => string.Equals(a.Trim(), RestrictionCatalog.WindowsGames.Token, StringComparison.OrdinalIgnoreCase));
+        var names = Normalize(RestrictionCatalog.Expand(appsInput.Where(a => !string.Equals(a.Trim(), RestrictionCatalog.WindowsGames.Token, StringComparison.OrdinalIgnoreCase)),
+                                                        RestrictionCatalog.AppCategories), stripExe: true)
+                    .Where(a => !Protected.Contains(a));
+        var sites = Normalize(RestrictionCatalog.Expand(p.BlockedSites ?? new(), RestrictionCatalog.SiteCategories), stripExe: false);
+        lock (_lock)
+        {
+            _appNames = new HashSet<string>(names, StringComparer.OrdinalIgnoreCase);
+            _storeGameTokens = storeGames ? RestrictionCatalog.WindowsGames.Items.ToList() : new();
+            _sites = sites;
+        }
         var clean = new RestrictionsPayload
         {
             Enabled = p.Enabled,
-            BlockedApps = Normalize(p.BlockedApps, stripExe: true).Where(a => !Protected.Contains(a)).ToList(),
+            BlockedApps = Normalize(appsInput, stripExe: true).Where(a => !Protected.Contains(a)).ToList(),
             BlockedSites = Normalize(p.BlockedSites, stripExe: false),
             AllowedSites = Normalize(p.AllowedSites, stripExe: false),
             Web = p.Web,
@@ -70,10 +86,10 @@ internal sealed class RestrictionEnforcer : IDisposable
         if (active)
             _host.ShowMessage("Restrictions actives",
                 "Le professeur a restreint l'utilisation de ce poste." +
-                (clean.BlockedApps.Count > 0 ? "\n\nApplications interdites : " + string.Join(", ", clean.BlockedApps) : "") +
+                (clean.BlockedApps.Count > 0 ? "\n\nApplications interdites : " + RestrictionCatalog.Describe(clean.BlockedApps, RestrictionCatalog.AppCategories) : "") +
                 clean.Web switch
                 {
-                    WebMode.BlockList when clean.BlockedSites.Count > 0 => "\nSites interdits : " + string.Join(", ", clean.BlockedSites),
+                    WebMode.BlockList when clean.BlockedSites.Count > 0 => "\nSites interdits : " + RestrictionCatalog.Describe(clean.BlockedSites, RestrictionCatalog.SiteCategories),
                     WebMode.AllowList => "\nSeuls ces sites sont autorisés : " + (clean.AllowedSites.Count > 0 ? string.Join(", ", clean.AllowedSites) : "aucun"),
                     WebMode.BlockAll => "\nLes navigateurs internet sont interdits.",
                     _ => "",
@@ -94,29 +110,54 @@ internal sealed class RestrictionEnforcer : IDisposable
         RestrictionsPayload r;
         lock (_lock) r = _current;
         if (!r.Enabled) return;
-        try { EnforceApps(r.BlockedApps); } catch { }
+        HashSet<string> names; List<string> tokens, sites;
+        lock (_lock) { names = _appNames; tokens = _storeGameTokens; sites = _sites; }
+        try { EnforceApps(names, tokens); } catch { }
         try
         {
             switch (r.Web)
             {
-                case WebMode.BlockList: EnforceSites(r.BlockedSites); break;
+                case WebMode.BlockList: EnforceSites(sites); break;
                 case WebMode.AllowList: EnforceAllowList(r.AllowedSites); break;
-                case WebMode.BlockAll: EnforceApps(Browsers.ToList(), "Navigateur interdit"); break;
+                case WebMode.BlockAll: EnforceApps(Browsers, new List<string>(), "Navigateur interdit"); break;
             }
         }
         catch { }
     }
 
-    private void EnforceApps(List<string> apps, string title = "Application interdite")
+    // Chemins des processus déjà examinés (pid → chemin), vidé régulièrement.
+    private readonly Dictionary<int, string?> _paths = new();
+    private DateTime _pathsReset = DateTime.UtcNow;
+
+    /// <summary>
+    /// Ferme les applications interdites : par nom de processus, et pour les jeux du Store
+    /// (Solitaire, Candy Crush…) par le nom du paquet dans leur dossier « WindowsApps ».
+    /// </summary>
+    private void EnforceApps(ISet<string> names, List<string> storeTokens, string title = "Application interdite")
     {
+        if (names.Count == 0 && storeTokens.Count == 0) return;
+        if (DateTime.UtcNow - _pathsReset > TimeSpan.FromSeconds(30)) { _paths.Clear(); _pathsReset = DateTime.UtcNow; }
+        int session = Process.GetCurrentProcess().SessionId;
         var killed = new List<string>();
-        foreach (var name in apps)
+        foreach (var p in Process.GetProcesses())
         {
-            foreach (var p in Process.GetProcessesByName(name))
+            try
             {
-                try { p.Kill(entireProcessTree: true); killed.Add(name); } catch { }
-                finally { p.Dispose(); }
+                if (p.SessionId != session) continue;
+                bool hit = names.Contains(p.ProcessName);
+                if (!hit && storeTokens.Count > 0)
+                {
+                    if (!_paths.TryGetValue(p.Id, out var path)) _paths[p.Id] = path = Native.ProcessPath(p.Id);
+                    hit = path != null && path.Contains("\\WindowsApps\\", StringComparison.OrdinalIgnoreCase)
+                          && storeTokens.Any(t => path.Contains(t, StringComparison.OrdinalIgnoreCase));
+                }
+                if (!hit || Protected.Contains(p.ProcessName)) continue;
+                string label = string.IsNullOrWhiteSpace(p.MainWindowTitle) ? p.ProcessName : p.MainWindowTitle;
+                p.Kill(entireProcessTree: true);
+                killed.Add(label);
             }
+            catch { }
+            finally { p.Dispose(); }
         }
         if (killed.Count > 0 && DateTime.UtcNow - _lastAppNotice > TimeSpan.FromSeconds(10))
         {

@@ -23,6 +23,9 @@ internal sealed class AgentConnection : IDisposable
     public bool IsInternetBlocked { get; set; }
     public bool IsMuted { get; set; }
     public bool IsInputLocked { get; set; }
+    /// <summary>Restrictions appliquées à ce poste (applications et sites interdits).</summary>
+    public RestrictionsPayload Restrictions { get; private set; } = new();
+    public event Action<AgentConnection, string>? Notice;
 
     /// <summary>Applications ouvertes sur le poste (dernière liste reçue), l'active en premier.</summary>
     public IReadOnlyList<AppInfo> Apps { get; private set; } = Array.Empty<AppInfo>();
@@ -125,6 +128,11 @@ internal sealed class AgentConnection : IDisposable
                         Apps = al.Apps;
                         AppsChanged?.Invoke(this);
                     }
+                }
+                else if (env.Type == MessageType.AgentNotice)
+                {
+                    var n = Wire.Read<AgentNoticePayload>(env);
+                    if (n != null) Notice?.Invoke(this, n.Text);
                 }
                 else if (env.Type == MessageType.Chat)
                 {
@@ -261,7 +269,12 @@ internal sealed class AgentConnection : IDisposable
         Send(MessageType.FilePush, new FilePushPayload { FileName = name, Content = content, OpenAfter = open });
 
     public Task LowerHand() => Send(MessageType.LowerHand, new { });
-    public Task SetRestrictions(RestrictionsPayload p) => Send(MessageType.SetRestrictions, p);
+    public Task SetRestrictions(RestrictionsPayload p)
+    {
+        Restrictions = p.Clone();
+        return Send(MessageType.SetRestrictions, p);
+    }
+    public Task RemoveGames() => Send(MessageType.RemoveGames, new { });
     public Task StartBroadcast(BroadcastStartPayload p) => Send(MessageType.BroadcastStart, p);
     public Task StopBroadcast() => Send(MessageType.BroadcastStop, new { });
 

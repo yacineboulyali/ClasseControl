@@ -38,6 +38,8 @@ internal sealed class ConsoleSettings
     public List<string> AllowedSites { get; set; } = new();
     /// <summary>Ordre des vignettes choisi par glisser-déposer (noms des postes).</summary>
     public List<string> TileOrder { get; set; } = new();
+    /// <summary>Restrictions propres à chaque poste (par nom), réappliquées à chaque connexion.</summary>
+    public Dictionary<string, RestrictionsPayload> RestrictionsByMachine { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 
     private static string Dir =>
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Classe_controle");

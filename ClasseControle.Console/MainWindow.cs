@@ -266,10 +266,10 @@ internal sealed class MainWindow : Window
             ("Sites approuvés uniquement", () => Run(() => SetWebModeAsync(WebMode.AllowList))),
             ("Bloquer tout le web", () => Run(() => SetWebModeAsync(WebMode.BlockAll))),
             ("-", () => { }),
-            ("Modifier les listes…", () => Run(EditRestrictionsAsync)),
+            ("Applications et sites interdits…", () => Run(() => EditRestrictionsAsync())),
             ("Ouvrir un site sur les postes…", () => Run(OpenWebsiteAsync))));
         _netBtn = Ribbon.Big(Glyph.WebOff, "Couper Internet", () => Run(() => ToggleInternetAsync(Targets())));
-        var web = Ribbon.Group("Accès web", _webBtn, _netBtn);
+        var web = Ribbon.Group("Accès web", _webBtn, Ribbon.Big(Glyph.Blocked, "Restrictions…", () => Run(() => EditRestrictionsAsync())), _netBtn);
         _muteBtn = Ribbon.Big(Glyph.SoundOff, "Couper le son", () => Run(() => ToggleMuteAsync(Targets())));
         var sound = Ribbon.Group("Son", _muteBtn);
 
@@ -341,7 +341,8 @@ internal sealed class MainWindow : Window
             Ribbon.Group("Applications",
                 Ribbon.Big(Glyph.Play, "Lancer une application…", () => Run(() => LaunchAppAsync(Targets()))),
                 Ribbon.Big(Glyph.Cancel, "Fermer une application…", () => Run(CloseAppAsync)),
-                Ribbon.Big(Glyph.Blocked, "Restrictions…", () => Run(EditRestrictionsAsync))),
+                Ribbon.Big(Glyph.Blocked, "Restrictions…", () => Run(() => EditRestrictionsAsync())),
+                Ribbon.Big(Glyph.Delete, "Désinstaller les jeux Windows…", () => Run(() => RemoveGamesAsync(Targets())))),
             Ribbon.Group("Alimentation",
                 Ribbon.Big(Glyph.Power, "Éteindre", () => Run(() => PowerAsync(Targets(), "éteindre", c => c.Shutdown(10, "Arrêt demandé par le professeur")))),
                 Ribbon.Big(Glyph.Refresh, "Redémarrer", () => Run(() => PowerAsync(Targets(), "redémarrer", c => c.Restart(10, "Redémarrage demandé par le professeur")))),
@@ -402,7 +403,7 @@ internal sealed class MainWindow : Window
                 new Border { Height = 1, Background = Palette.Line, Margin = new Thickness(12, 8) },
                 Item(Glyph.Projector, "Montrer mon écran", () => Run(ShowMyScreenAsync)),
                 _sideAnnounce,
-                Item(Glyph.Globe, "Accès web et restrictions", () => Run(EditRestrictionsAsync)),
+                Item(Glyph.Blocked, "Applications et sites interdits", () => Run(() => EditRestrictionsAsync())),
                 (_sideNet = Item(Glyph.WebOff, "Couper / rétablir Internet", () => Run(() => ToggleInternetAsync(Targets())))),
                 Item(Glyph.SoundOff, "Couper / rétablir le son", () => Run(() => ToggleMuteAsync(Targets()))),
                 (_sideInput = Item(Glyph.InputLock, "Bloquer / débloquer clavier et souris", () => Run(() => ToggleInputLockAsync(Targets())))),
@@ -613,6 +614,7 @@ internal sealed class MainWindow : Window
             Children =
             {
                 new TextBlock { Text = "Gérer", FontSize = 11.5, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(6, 0, 8, 0) },
+                IconCmd(Glyph.Blocked, "Applications et sites interdits pour ce(s) poste(s)…", () => Run(() => EditRestrictionsAsync(targets))),
                 IconCmd(Glyph.Hand, "Baisser la main", () => Run(() => LowerHandAsync(targets))),
                 IconCmd(Glyph.Power, "Éteindre", () => Run(() => PowerAsync(targets, "éteindre", c => c.Shutdown(10, "Arrêt demandé par le professeur")))),
                 IconCmd(Glyph.Refresh, "Redémarrer", () => Run(() => PowerAsync(targets, "redémarrer", c => c.Restart(10, "Redémarrage demandé par le professeur")))),
@@ -738,6 +740,11 @@ internal sealed class MainWindow : Window
         conn.GroupDocReceived += (c, d) => _ = _groupMgr.HandleDocAsync(c, d);
         conn.GroupChatReceived += (c, m) => _ = _groupMgr.HandleChatAsync(c, m);
         conn.ChatReceived += (c, m) => Dispatcher.UIThread.Post(() => OnIncomingChat(c, m));
+        conn.Notice += (c, text) => Dispatcher.UIThread.Post(() =>
+        {
+            SetStatus(text);
+            ActionLog.Add("Compte rendu", c.Info.MachineName, text);
+        });
     }
 
     /// <summary>Poste (re)connecté : présence, miniature, restrictions, diffusion, séance, équipe.</summary>
@@ -747,8 +754,10 @@ internal sealed class MainWindow : Window
         ActionLog.Add("Connexion", c.Info.MachineName, $"{c.Info.UserName} — {c.Info.IpAddress}");
         if (_thumbsLive)
             try { await c.AcquireStream("thumb", ThumbProfile); } catch { }
-        if (_restrictions.Enabled)
-            try { await c.SetRestrictions(_restrictions); } catch { }
+        var own = _settings.RestrictionsByMachine.TryGetValue(c.Info.MachineName, out var saved) ? saved
+                : _restrictions.IsActive ? _restrictions : null;
+        if (own != null)
+            try { await c.SetRestrictions(own.Clone()); } catch { }
         if (_internetCutForClass || c.IsInternetBlocked)
             try { await c.SetInternet(true); } catch { }
         if (_muteForClass || c.IsMuted)
@@ -1259,38 +1268,94 @@ internal sealed class MainWindow : Window
         _ => "Web",
     };
 
+    /// <summary>Change seulement le mode web des postes visés, en gardant leurs autres restrictions.</summary>
     private async Task SetWebModeAsync(WebMode mode)
     {
-        if (mode == WebMode.AllowList && _restrictions.AllowedSites.Count == 0)
-        {
-            SetStatus("Ajoutez d'abord des sites approuvés (Accès web › Modifier les listes).");
-            await EditRestrictionsAsync();
-            if (_restrictions.AllowedSites.Count == 0) return;
-        }
-        _restrictions.Web = mode;
-        _restrictions.Enabled = mode != WebMode.Unrestricted || _restrictions.BlockedApps.Count > 0;
         var targets = Targets();
-        await ApplyAsync(targets, "Accès web : " + WebLabel(mode), c => c.SetRestrictions(_restrictions));
-        SetBigLabel(_webBtn, WebLabel(mode));
-        SetState(_webBtn, mode != WebMode.Unrestricted ? "warn" : null);
+        if (targets.Count == 0) { SetStatus("Aucun poste connecté."); return; }
+        if (mode == WebMode.AllowList && targets.All(t => t.Restrictions.AllowedSites.Count == 0) && _settings.AllowedSites.Count == 0)
+        {
+            SetStatus("Ajoutez d'abord des sites approuvés.");
+            await EditRestrictionsAsync(targets, mode);
+            return;
+        }
+        await ApplyRestrictionsAsync(targets, c =>
+        {
+            var r = (c.Restrictions.Enabled || c.Restrictions.BlockedApps.Count > 0 ? c.Restrictions : _restrictions).Clone();
+            r.Web = mode;
+            if (r.AllowedSites.Count == 0) r.AllowedSites = _settings.AllowedSites.ToList();
+            r.Enabled = r.BlockedApps.Count > 0 || mode != WebMode.Unrestricted;
+            return r;
+        }, "Accès web : " + WebLabel(mode));
     }
 
-    private async Task EditRestrictionsAsync()
+    /// <summary>
+    /// Restrictions d'un poste (clic droit), de la sélection ou de toute la classe.
+    /// Elles sont mémorisées par poste et réappliquées à chaque connexion.
+    /// </summary>
+    private async Task EditRestrictionsAsync(IReadOnlyList<AgentConnection>? targets = null, WebMode? presetMode = null)
     {
-        var targets = Targets();
-        var dlg = new RestrictionsDialog(_restrictions, targets.Count);
+        targets ??= Targets();
+        if (targets.Count == 0) { SetStatus("Aucun poste connecté."); return; }
+        bool whole = IsWholeClass(targets);
+        string label = targets.Count == 1 ? $"{targets[0].Info.MachineName} ({targets[0].DisplayName})"
+                     : whole ? $"toute la classe ({targets.Count} postes)" : $"{targets.Count} postes sélectionnés";
+        var initial = (targets.Count == 1 || !whole ? targets[0].Restrictions : _restrictions).Clone();
+        if (initial.AllowedSites.Count == 0) initial.AllowedSites = _settings.AllowedSites.ToList();
+        if (presetMode is { } m) { initial.Web = m; initial.Enabled = true; }
+
+        var dlg = new RestrictionsDialog(initial, label);
         await dlg.ShowDialog(this);
         if (dlg.Result is not { } r) return;
+        if (r.AllowedSites.Count > 0) _settings.AllowedSites = r.AllowedSites.ToList();
+        await ApplyRestrictionsAsync(targets, _ => r.Clone(), r.IsActive ? "Restrictions appliquées" : "Restrictions levées");
+    }
 
-        if (!r.Enabled) r.Web = WebMode.Unrestricted;
-        r.Enabled = r.BlockedApps.Count > 0 || r.Web != WebMode.Unrestricted;
-        _restrictions = r;
-        _settings.AllowedSites = r.AllowedSites.ToList();
+    private async Task ApplyRestrictionsAsync(IReadOnlyList<AgentConnection> targets, Func<AgentConnection, RestrictionsPayload> make, string label)
+    {
+        RestrictionsPayload? last = null;
+        foreach (var c in targets)
+        {
+            var r = make(c);
+            last = r;
+            try { await c.SetRestrictions(r); } catch { }
+            if (r.IsActive) _settings.RestrictionsByMachine[c.Info.MachineName] = r.Clone();
+            else _settings.RestrictionsByMachine.Remove(c.Info.MachineName);
+        }
+        if (IsWholeClass(targets) && last != null) _restrictions = last.Clone();
         _settings.Save();
-        await ApplyAsync(targets, r.Enabled ? "Restrictions appliquées" : "Restrictions levées", c => c.SetRestrictions(r),
-            r.Enabled ? $"apps : {string.Join(", ", r.BlockedApps)} | web : {WebLabel(r.Web)}" : "");
-        SetBigLabel(_webBtn, WebLabel(r.Web));
-        SetState(_webBtn, r.Web != WebMode.Unrestricted ? "warn" : null);
+        RefreshTiles(targets);
+        if (last != null)
+            Log(label, targets, last.IsActive
+                ? $"apps : {RestrictionCatalog.Describe(last.BlockedApps, RestrictionCatalog.AppCategories)} | web : {WebLabel(last.Web)}"
+                  + (last.BlockedSites.Count > 0 ? " — " + RestrictionCatalog.Describe(last.BlockedSites, RestrictionCatalog.SiteCategories) : "")
+                : "");
+        UpdateRestrictionUi();
+        SetStatus($"{label} : {targets.Count} poste(s).");
+    }
+
+    private void UpdateRestrictionUi()
+    {
+        var connected = _tiles.Values.Where(t => t.Conn.IsConnected).Select(t => t.Conn).ToList();
+        var modes = connected.Where(c => c.Restrictions.Enabled).Select(c => c.Restrictions.Web).Distinct().ToList();
+        var shown = modes.Count == 1 ? modes[0] : modes.Count == 0 ? WebMode.Unrestricted : WebMode.BlockList;
+        SetBigLabel(_webBtn, modes.Count > 1 ? "Mixte" : WebLabel(shown));
+        SetState(_webBtn, connected.Any(c => c.Restrictions.IsActive) ? "warn" : null);
+    }
+
+    /// <summary>Désinstalle les jeux préinstallés de Windows (Solitaire, Candy Crush…) sur les postes visés.</summary>
+    private async Task RemoveGamesAsync(IReadOnlyList<AgentConnection> targets)
+    {
+        if (targets.Count == 0) { SetStatus("Aucun poste connecté."); return; }
+        var confirm = new ConfirmDialog("Désinstaller les jeux Windows",
+            $"Désinstaller les jeux préinstallés de Windows (Solitaire, Candy Crush, Minecraft, Mahjong, Bubble Witch…) " +
+            $"pour l'utilisateur de {targets.Count} poste(s) ?\n\n" +
+            "La désinstallation est définitive pour cet utilisateur (les jeux peuvent être réinstallés depuis le Microsoft Store). " +
+            "Pour simplement empêcher leur ouverture, utilisez plutôt « Applications et sites interdits ».");
+        await confirm.ShowDialog(this);
+        if (!confirm.Confirmed) return;
+        await ApplyAsync(targets, "Désinstallation des jeux Windows", c => c.RemoveGames());
+        SetStatus($"Désinstallation lancée sur {targets.Count} poste(s) : chaque poste envoie son compte rendu (journal).");
     }
 
     private async Task OpenWebsiteAsync()

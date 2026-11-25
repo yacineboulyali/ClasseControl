@@ -22,6 +22,7 @@ internal sealed class StudentTile
 
     private readonly TextBlock _headerName = new() { Foreground = Brushes.White, FontSize = 11.5, FontWeight = FontWeight.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis };
     private readonly TextBlock _headerTime = new() { Foreground = new SolidColorBrush(Color.FromRgb(190, 205, 230)), FontSize = 11 };
+    private readonly ContentControl _restrictIcon = new() { Margin = new Thickness(4, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center };
     private readonly TextBlock _stars = new() { Foreground = new SolidColorBrush(Color.FromRgb(255, 200, 40)), FontSize = 12 };
     private readonly TextBlock _lesson = new() { Foreground = new SolidColorBrush(Color.FromRgb(190, 205, 230)), FontSize = 11, TextTrimming = TextTrimming.CharacterEllipsis, HorizontalAlignment = HorizontalAlignment.Right };
     private readonly Image _thumb = new() { Stretch = Stretch.Uniform };
@@ -69,8 +70,9 @@ internal sealed class StudentTile
         _headerTime.Margin = new Thickness(8, 0, 6, 0);
         Grid.SetColumn(_headerTime, 1);
         header.Children.Add(_headerTime);
-        Grid.SetColumn(_stars, 2);
-        header.Children.Add(_stars);
+        var headerMid = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center, Children = { _stars, _restrictIcon } };
+        Grid.SetColumn(headerMid, 2);
+        header.Children.Add(headerMid);
         Grid.SetColumn(_lesson, 3);
         header.Children.Add(_lesson);
         foreach (var c in header.Children.OfType<TextBlock>()) c.VerticalAlignment = VerticalAlignment.Center;
@@ -314,6 +316,18 @@ internal sealed class StudentTile
         _handBadge.IsVisible = Conn.IsHandRaised;
         _netBadge.IsVisible = Conn.IsConnected && Conn.IsInternetBlocked;
         _muteBadge.IsVisible = Conn.IsConnected && Conn.IsMuted;
+        var rs = Conn.Restrictions;
+        if (rs.IsActive)
+        {
+            _restrictIcon.Content ??= Glyph.Make(Glyph.Blocked, 13, new SolidColorBrush(Color.FromRgb(255, 140, 120)));
+            var parts = new List<string>();
+            if (rs.BlockedApps.Count > 0) parts.Add("Applications : " + RestrictionCatalog.Describe(rs.BlockedApps, RestrictionCatalog.AppCategories));
+            if (rs.Web == WebMode.BlockList && rs.BlockedSites.Count > 0) parts.Add("Sites : " + RestrictionCatalog.Describe(rs.BlockedSites, RestrictionCatalog.SiteCategories));
+            if (rs.Web == WebMode.AllowList) parts.Add("Web : sites approuvés uniquement");
+            if (rs.Web == WebMode.BlockAll) parts.Add("Web bloqué");
+            ToolTip.SetTip(_restrictIcon, "Restrictions actives\n" + string.Join("\n", parts));
+        }
+        _restrictIcon.IsVisible = rs.IsActive;
         _inputBadge.IsVisible = Conn.IsConnected && Conn.IsInputLocked;
         UpdateActiveApp();
         if (!Conn.IsConnected)

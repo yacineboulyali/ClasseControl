@@ -88,99 +88,113 @@ internal sealed class BroadcastDialog : Window
     }
 }
 
-/// <summary>Édition de la liste des applications et sites interdits.</summary>
+/// <summary>
+/// Restrictions d'un poste, d'une sélection ou de toute la classe : catégories prêtes
+/// (jeux préinstallés de Windows, plateformes de jeux, messageries, réseaux sociaux, vidéo,
+/// jeux en ligne), listes libres, et mode d'accès au web.
+/// </summary>
 internal sealed class RestrictionsDialog : Window
 {
     public RestrictionsPayload? Result { get; private set; }
 
-    private static readonly string[] SitePreset = { "youtube", "facebook", "instagram", "tiktok", "netflix", "twitch", "snapchat" };
-    private static readonly string[] GamePreset = { "steam", "epicgameslauncher", "discord", "minecraft", "robloxplayerbeta" };
+    private readonly Dictionary<string, CheckBox> _appCats = new();
+    private readonly Dictionary<string, CheckBox> _siteCats = new();
+    private readonly TextBox _apps, _sites, _allowed;
+    private readonly ComboBox _web;
 
-    public RestrictionsDialog(RestrictionsPayload current, int targetCount)
+    public RestrictionsDialog(RestrictionsPayload current, string target)
     {
-        Title = "Restrictions — applications et sites";
-        Width = 860;
+        Title = "Restrictions — " + target;
+        Width = 940;
         SizeToContent = SizeToContent.Height;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
         CanResize = false;
 
-        var allowed = MultiLine(current.AllowedSites, "un mot-clé par ligne, ex :\nwikipedia\nmoodle\nofppt");
-        var apps = MultiLine(current.BlockedApps, "un nom de processus par ligne, ex :\nchrome\ndiscord");
-        var sites = MultiLine(current.BlockedSites, "un mot-clé par ligne, ex :\nyoutube\nfacebook");
-
-        var addSites = new Button { Content = "+ Réseaux sociaux / vidéo", Padding = new Thickness(8, 3, 8, 3), FontSize = 12 };
-        addSites.Click += (_, _) => Append(sites, SitePreset);
-        var addGames = new Button { Content = "+ Jeux / messageries", Padding = new Thickness(8, 3, 8, 3), FontSize = 12 };
-        addGames.Click += (_, _) => Append(apps, GamePreset);
-
-        var cols = new Grid { ColumnDefinitions = new ColumnDefinitions("*,16,*,16,*") };
-        var left = new StackPanel
+        var tokens = new HashSet<string>(current.BlockedApps.Concat(current.BlockedSites), StringComparer.OrdinalIgnoreCase);
+        _apps = MultiLine(current.BlockedApps.Where(a => !a.StartsWith('@')), "ex :\nchrome\nvlc", 90);
+        _sites = MultiLine(current.BlockedSites.Where(a => !a.StartsWith('@')), "ex :\nnetflix\nspotify", 70);
+        _allowed = MultiLine(current.AllowedSites, "ex :\nwikipedia\nmoodle\nofppt", 70);
+        _web = new ComboBox
         {
-            Children =
-            {
-                new TextBlock { Text = "Applications interdites", FontWeight = FontWeight.SemiBold },
-                Ui.Hint("Fermées automatiquement dès leur ouverture."),
-                new Border { Height = 6 }, apps, new Border { Height = 6 }, addGames,
-            },
+            ItemsSource = new[] { "Sans restriction", "Sites interdits (catégories et liste ci-dessous)", "Sites approuvés uniquement", "Bloquer tout le web (navigateurs fermés)" },
+            SelectedIndex = current.Enabled ? (int)current.Web : 1,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
         };
-        var right = new StackPanel
-        {
-            Children =
-            {
-                new TextBlock { Text = "Sites interdits", FontWeight = FontWeight.SemiBold },
-                Ui.Hint("L'onglet est fermé si son titre contient le mot-clé."),
-                new Border { Height = 6 }, sites, new Border { Height = 6 }, addSites,
-            },
-        };
-        Grid.SetColumn(right, 2);
+
+        var left = new StackPanel { Spacing = 6 };
+        left.Children.Add(Section("Applications interdites", "Fermées automatiquement dès leur ouverture, à chaque fois."));
+        foreach (var c in RestrictionCatalog.AppCategories) left.Children.Add(CategoryBox(c, tokens.Contains(c.Token), _appCats));
+        left.Children.Add(new TextBlock { Text = "Autres applications (nom du processus, une par ligne) :", Margin = new Thickness(0, 6, 0, 0) });
+        left.Children.Add(_apps);
+        left.Children.Add(Ui.Hint("Le nom du processus se voit dans le Gestionnaire des tâches (onglet Détails), sans « .exe ». " +
+                                  "Astuce : le panneau « Applications ouvertes » de la console les affiche aussi."));
+
+        var right = new StackPanel { Spacing = 6 };
+        right.Children.Add(Section("Accès au web", "Le blocage se fait sur le titre de l'onglet actif du navigateur."));
+        right.Children.Add(_web);
+        foreach (var c in RestrictionCatalog.SiteCategories) right.Children.Add(CategoryBox(c, tokens.Contains(c.Token), _siteCats));
+        right.Children.Add(new TextBlock { Text = "Autres sites interdits (mot-clé, un par ligne) :", Margin = new Thickness(0, 6, 0, 0) });
+        right.Children.Add(_sites);
+        right.Children.Add(new TextBlock { Text = "Sites approuvés (mode « approuvés uniquement ») :" });
+        right.Children.Add(_allowed);
+
+        var cols = new Grid { ColumnDefinitions = new ColumnDefinitions("*,24,*") };
         cols.Children.Add(left);
+        Grid.SetColumn(right, 2);
         cols.Children.Add(right);
-        var third = new StackPanel
-        {
-            Children =
-            {
-                new TextBlock { Text = "Sites approuvés", FontWeight = FontWeight.SemiBold },
-                Ui.Hint("Utilisés en mode « Sites approuvés uniquement » (ruban › Accès web)."),
-                new Border { Height = 6 }, allowed,
-            },
-        };
-        Grid.SetColumn(third, 4);
-        cols.Children.Add(third);
-
-        RestrictionsPayload Build(bool enabled) => new()
-        {
-            Enabled = enabled,
-            BlockedApps = Lines(apps),
-            BlockedSites = Lines(sites),
-            AllowedSites = Lines(allowed),
-            Web = current.Web,
-        };
 
         Content = new StackPanel
         {
-            Margin = new Thickness(20),
+            Margin = new Thickness(22, 18),
             Children =
             {
-                new TextBlock
-                {
-                    Text = $"S'applique à {targetCount} poste(s), et aux postes qui se connectent ensuite.",
-                    TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 12),
-                },
+                new TextBlock { Text = "S'applique à : " + target, FontWeight = FontWeight.SemiBold, Margin = new Thickness(0, 0, 0, 12) },
                 cols,
-                Ui.Hint("Le blocage des sites repose sur le titre de l'onglet actif (Chrome, Edge, Firefox…). " +
-                        "Il ne remplace pas un filtrage réseau mais suffit pour encadrer une séance."),
                 Ui.ButtonRow(
                     Ui.Btn("Annuler", Close),
-                    Ui.Btn("🔓 Tout lever", () => { Result = Build(false); Close(); }),
-                    Ui.Btn("⛔ Appliquer", () => { Result = Build(true); Close(); })),
+                    Ui.Btn("Tout lever", () => { Result = new RestrictionsPayload { Enabled = false, Web = WebMode.Unrestricted }; Close(); }),
+                    Ui.Btn("⛔ Appliquer", () => { Result = Build(); Close(); })),
             },
         };
     }
 
-    private static TextBox MultiLine(IEnumerable<string> items, string watermark) => new()
+    private RestrictionsPayload Build()
+    {
+        var apps = _appCats.Where(kv => kv.Value.IsChecked == true).Select(kv => kv.Key).Concat(Lines(_apps)).ToList();
+        var sites = _siteCats.Where(kv => kv.Value.IsChecked == true).Select(kv => kv.Key).Concat(Lines(_sites)).ToList();
+        var web = (WebMode)Math.Max(0, _web.SelectedIndex);
+        var r = new RestrictionsPayload { BlockedApps = apps, BlockedSites = sites, AllowedSites = Lines(_allowed), Web = web };
+        r.Enabled = apps.Count > 0 || web != WebMode.Unrestricted;
+        return r;
+    }
+
+    private static Control Section(string title, string hint) => new StackPanel
+    {
+        Children = { new TextBlock { Text = title, FontWeight = FontWeight.Bold, FontSize = 15 }, Ui.Hint(hint) },
+    };
+
+    private static Control CategoryBox(RestrictionCatalog.Category c, bool on, Dictionary<string, CheckBox> into)
+    {
+        var box = new CheckBox
+        {
+            IsChecked = on,
+            Content = new StackPanel
+            {
+                Children =
+                {
+                    new TextBlock { Text = c.Label, FontWeight = FontWeight.SemiBold },
+                    new TextBlock { Text = c.Description, FontSize = 11.5, Foreground = Ui.Muted, TextWrapping = TextWrapping.Wrap },
+                },
+            },
+        };
+        into[c.Token] = box;
+        return box;
+    }
+
+    private static TextBox MultiLine(IEnumerable<string> items, string watermark, double height) => new()
     {
         AcceptsReturn = true,
-        Height = 160,
+        Height = height,
         TextWrapping = TextWrapping.NoWrap,
         Watermark = watermark,
         Text = string.Join(Environment.NewLine, items),
@@ -189,12 +203,6 @@ internal sealed class RestrictionsDialog : Window
     private static List<string> Lines(TextBox box) =>
         (box.Text ?? "").Split('\n', ',', ';').Select(l => l.Trim()).Where(l => l.Length > 0)
             .Distinct(StringComparer.OrdinalIgnoreCase).ToList();
-
-    private static void Append(TextBox box, IEnumerable<string> extra)
-    {
-        var all = Lines(box).Concat(extra).Distinct(StringComparer.OrdinalIgnoreCase);
-        box.Text = string.Join(Environment.NewLine, all);
-    }
 }
 
 /// <summary>Journal des actions de la séance.</summary>

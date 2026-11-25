@@ -23,7 +23,7 @@ public static class Net
 
 public static class AgentInfo
 {
-    public const string Version = "1.8.0";
+    public const string Version = "1.9.0";
 }
 
 /// <summary>Types de messages échangés sur le canal de contrôle TCP.</summary>
@@ -56,6 +56,7 @@ public enum MessageType
     SetMute = 74,         // couper / rétablir le son des applications de l'élève
     AppsWatch = 77,       // démarrer / arrêter l'envoi de la liste des applications ouvertes
     InputLock = 78,       // bloquer / débloquer le clavier et la souris de l'élève (écran visible)
+    RemoveGames = 79,     // désinstaller les jeux préinstallés de Windows (pour l'utilisateur du poste)
     Survey = 75,          // sondage rapide envoyé aux élèves
     SurveyClose = 76,     // fin du sondage
     SetRestrictions = 70, // liste d'applications / sites interdits
@@ -73,6 +74,7 @@ public enum MessageType
     Chat = 120,           // discussion professeur ↔ élève (dans les deux sens)
     SurveyAnswer = 121,   // réponse de l'élève à un sondage
     AppsList = 122,       // applications ouvertes sur le poste élève
+    AgentNotice = 123,    // compte rendu d'une action (ex. jeux désinstallés)
 
     // --- Élève -> Prof ---
     HelloAck = 1,         // réponse à Hello (accepté/refusé)
@@ -226,6 +228,17 @@ public sealed class RestrictionsPayload
     public List<string> BlockedSites { get; set; } = new();
     public WebMode Web { get; set; } = WebMode.BlockList;
     public List<string> AllowedSites { get; set; } = new();
+
+    public RestrictionsPayload Clone() => new()
+    {
+        Enabled = Enabled, Web = Web,
+        BlockedApps = BlockedApps.ToList(), BlockedSites = BlockedSites.ToList(), AllowedSites = AllowedSites.ToList(),
+    };
+
+    /// <summary>Restrictions réellement actives (applications interdites ou web filtré).</summary>
+    [JsonIgnore]
+    public bool IsActive => Enabled && (BlockedApps.Count > 0 || Web == WebMode.AllowList || Web == WebMode.BlockAll
+                                        || (Web == WebMode.BlockList && BlockedSites.Count > 0));
 }
 
 public sealed class HandRaisePayload
@@ -386,4 +399,9 @@ public sealed class AppsListPayload
 public sealed class InputLockPayload
 {
     public bool Locked { get; set; }
+}
+
+public sealed class AgentNoticePayload
+{
+    public string Text { get; set; } = "";
 }

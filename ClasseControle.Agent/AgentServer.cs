@@ -452,6 +452,15 @@ internal sealed class AgentServer
                         catch { }
                         break;
 
+                    case MessageType.RemoveGames:
+                        var replyTo = session;
+                        _ = Task.Run(async () =>
+                        {
+                            string report = RemovePreinstalledGames();
+                            await SendTo(replyTo, MessageType.AgentNotice, new AgentNoticePayload { Text = report });
+                        });
+                        break;
+
                     case MessageType.InputLock:
                         var il = Wire.Read<InputLockPayload>(env) ?? new InputLockPayload();
                         _inputLockTimeout?.Cancel();
@@ -667,6 +676,41 @@ internal sealed class AgentServer
             });
         }
         catch { }
+    }
+
+    /// <summary>
+    /// Désinstalle, pour l'utilisateur de la session, les jeux préinstallés de Windows
+    /// (Solitaire, Candy Crush…). Ne demande pas de droits administrateur.
+    /// </summary>
+    private string RemovePreinstalledGames()
+    {
+        string machine = _settings.DisplayName;
+        try
+        {
+            string patterns = string.Join(",", RestrictionCatalog.UwpGamePackagePatterns.Select(p => "'" + p.Replace("'", "''") + "'"));
+            string script =
+                "$ErrorActionPreference='SilentlyContinue';" +
+                $"foreach($pat in @({patterns})){{" +
+                "  Get-AppxPackage -Name $pat | ForEach-Object {" +
+                "    try { Remove-AppxPackage -Package $_.PackageFullName -ErrorAction Stop; Write-Output $_.Name } catch {} } }";
+            var psi = new System.Diagnostics.ProcessStartInfo("powershell.exe",
+                "-NoProfile -NonInteractive -ExecutionPolicy Bypass -Command \"" + script.Replace("\"", "\\\"") + "\"")
+            {
+                UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true, RedirectStandardError = true,
+            };
+            using var proc = System.Diagnostics.Process.Start(psi);
+            if (proc == null) return $"{machine} : impossible de lancer PowerShell.";
+            string output = proc.StandardOutput.ReadToEnd();
+            proc.WaitForExit(180_000);
+            var removed = output.Split('\n').Select(l => l.Trim()).Where(l => l.Length > 0).Distinct().ToList();
+            return removed.Count == 0
+                ? $"{machine} : aucun jeu préinstallé trouvé (déjà désinstallés)."
+                : $"{machine} : {removed.Count} jeu(x) désinstallé(s) — {string.Join(", ", removed.Select(Pretty))}";
+        }
+        catch (Exception ex) { return $"{machine} : échec de la désinstallation ({ex.Message})."; }
+
+        // « Microsoft.MicrosoftSolitaireCollection » → « MicrosoftSolitaireCollection »
+        static string Pretty(string pkg) => pkg.Contains('.') ? pkg[(pkg.LastIndexOf('.') + 1)..] : pkg;
     }
 
     // Processus jamais fermés par « Fermer toutes les applications ».

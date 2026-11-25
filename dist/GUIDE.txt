@@ -1,5 +1,5 @@
 ╔══════════════════════════════════════════════════════════════════╗
-║   CLASSE_CONTROLE — Supervision de salle informatique (v1.8)       ║
+║   CLASSE_CONTROLE — Supervision de salle informatique (v1.9)       ║
 ║   Équivalent libre et original de type "NetSupport School"         ║
 ╚══════════════════════════════════════════════════════════════════╝
 
@@ -131,10 +131,19 @@ switch / même sous-réseau).
      📺 Diffuser mon écran → votre écran s'affiche chez les élèves.
         Option « plein écran » : clavier/souris élèves bloqués.
         Recliquez (« ⏹ Arrêter la diffusion ») pour rendre la main.
-     ⛔ Restrictions… → applications interdites (un nom de processus
-        par ligne, ex : discord) et sites interdits (un mot-clé par
-        ligne, ex : youtube). « Tout lever » supprime les restrictions.
-        Elles s'appliquent aussi aux postes qui se connectent ensuite.
+     ⛔ Restrictions… → cochez des catégories (Jeux préinstallés de
+        Windows, Plateformes de jeux, Messageries, Réseaux sociaux,
+        Vidéo, Jeux en ligne) et/ou ajoutez vos propres applications
+        (nom du processus) et sites (mot-clé). « Tout lever » supprime.
+        Pour UN élève : clic droit sur sa vignette → icône ⛔ (Gérer).
+        Les restrictions de chaque poste sont mémorisées et
+        réappliquées à chaque connexion. Une icône ⛔ dans le bandeau
+        de la vignette indique un poste restreint.
+     🎮 Jeux Windows (Solitaire, Candy Crush, Minecraft…) :
+        - les BLOQUER : Restrictions… → « Jeux préinstallés de Windows » ;
+        - les DÉSINSTALLER : onglet Administrer → « Désinstaller les jeux
+          Windows… » (définitif pour l'utilisateur du poste ; compte
+          rendu de chaque poste dans le journal).
      📋 Présence → liste de la séance (arrivée, départ, mains levées),
         bouton « Exporter » pour un fichier CSV à ouvrir dans Excel.
      📜 Journal → toutes vos actions, enregistrées automatiquement dans
@@ -182,4 +191,4 @@ switch / même sous-réseau).
   • Outil destiné à un usage pédagogique encadré, sur des postes dont
     vous avez la responsabilité. Informez les utilisateurs.
 
-Bon cours !  —  Classe_controle v1.8
+Bon cours !  —  Classe_controle v1.9

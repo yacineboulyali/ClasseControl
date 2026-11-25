@@ -38,6 +38,7 @@ complémentaires » → « Exécuter quand même ».
 
 | Version | Téléchargements |
 |---|---|
+| **1.9.0** — restrictions par élève, jeux Windows bloqués ou désinstallés | [Installateur](https://github.com/yacineboulyali/ClasseControl/releases/download/v1.9.0/ClasseControle-Setup.exe) · [ClasseControle.exe](https://github.com/yacineboulyali/ClasseControl/releases/download/v1.9.0/ClasseControle.exe) · [Portable (.zip)](https://github.com/yacineboulyali/ClasseControl/releases/download/v1.9.0/ClasseControle-portable.zip) · [Notes](https://github.com/yacineboulyali/ClasseControl/releases/tag/v1.9.0) |
 | **1.8.0** — blocage du clavier et de la souris | [Installateur](https://github.com/yacineboulyali/ClasseControl/releases/download/v1.8.0/ClasseControle-Setup.exe) · [ClasseControle.exe](https://github.com/yacineboulyali/ClasseControl/releases/download/v1.8.0/ClasseControle.exe) · [Portable (.zip)](https://github.com/yacineboulyali/ClasseControl/releases/download/v1.8.0/ClasseControle-portable.zip) · [Notes](https://github.com/yacineboulyali/ClasseControl/releases/tag/v1.8.0) |
 | **1.7.0** — applications ouvertes, son coupé, glisser-déposer, contrôle direct | [Installateur](https://github.com/yacineboulyali/ClasseControl/releases/download/v1.7.0/ClasseControle-Setup.exe) · [ClasseControle.exe](https://github.com/yacineboulyali/ClasseControl/releases/download/v1.7.0/ClasseControle.exe) · [Portable (.zip)](https://github.com/yacineboulyali/ClasseControl/releases/download/v1.7.0/ClasseControle-portable.zip) · [Notes](https://github.com/yacineboulyali/ClasseControl/releases/tag/v1.7.0) |
 | **1.6.0** — application unique (prof + élève) | [Installateur](https://github.com/yacineboulyali/ClasseControl/releases/download/v1.6.0/ClasseControle-Setup.exe) · [ClasseControle.exe](https://github.com/yacineboulyali/ClasseControl/releases/download/v1.6.0/ClasseControle.exe) · [Portable (.zip)](https://github.com/yacineboulyali/ClasseControl/releases/download/v1.6.0/ClasseControle-portable.zip) · [Notes](https://github.com/yacineboulyali/ClasseControl/releases/tag/v1.6.0) |
@@ -166,8 +167,13 @@ ClasseControle.Console   Mode prof    (bibliothèque : Avalonia)
 - ☑️ Sélection groupée (tout / rien / par poste)
 - 📺 **Diffusion de l'écran du professeur** vers la classe (plein écran avec
   clavier/souris bloqués, ou en fenêtre)
-- ⛔ **Restrictions** : applications interdites (fermées automatiquement) et
-  sites interdits (onglet fermé si son titre contient un mot-clé)
+- ⛔ **Restrictions par élève ou pour la classe** (clic droit sur une vignette →
+  restrictions de ce poste, mémorisées et réappliquées à chaque connexion) :
+  catégories prêtes (**jeux préinstallés de Windows** : Solitaire, Candy Crush,
+  Minecraft, Mahjong…, plateformes de jeux, messageries, réseaux sociaux, vidéo,
+  jeux en ligne) + listes libres d'applications et de sites
+- 🎮 **Jeux préinstallés de Windows** : bloqués (reconnus par leur paquet du Store)
+  ou **désinstallés** d'un clic pour l'utilisateur du poste (Administrer)
 - ✋ **Main levée** : l'élève demande de l'aide depuis l'icône de notification,
   la carte du poste passe en orange et remonte en tête
 - 📋 **Liste de présence** de la séance (arrivée, départ, mains levées),
