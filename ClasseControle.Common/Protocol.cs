@@ -23,7 +23,7 @@ public static class Net
 
 public static class AgentInfo
 {
-    public const string Version = "1.9.0";
+    public const string Version = "1.9.1";
 }
 
 /// <summary>Types de messages échangés sur le canal de contrôle TCP.</summary>

@@ -25,6 +25,11 @@ switch / même sous-réseau).
     • Poste ÉLÈVE → mode agent : aucun raccourci, il
       démarre tout seul à chaque session et n'apparaît que près de
       l'horloge. Saisissez le code de salle demandé.
+  Option cochée par défaut pour un poste ÉLÈVE : « Supprimer les jeux
+  préinstallés de Windows pour TOUS les utilisateurs » (Solitaire,
+  Candy Crush, Minecraft, Mahjong, Démineur…). Les jeux sont retirés de
+  tous les comptes ET de l'image Windows (nouveaux comptes compris).
+  Journal : C:\ProgramData\Classe_controle\remove-games.log
   Le pare-feu est configuré automatiquement.
   Sans installateur, suivez les étapes 1) et 2) ci-dessous.
 

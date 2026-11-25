@@ -15,11 +15,15 @@
 ;    ClasseControle-Setup.exe /VERYSILENT /ROLE=eleve /ROOM=CLASSE
 ;    ClasseControle-Setup.exe /VERYSILENT /ROLE=prof
 ;
+;  Poste élève : l'option « supprimer les jeux préinstallés de Windows pour tous les
+;  utilisateurs » est cochée par défaut (aussi en silencieux). Pour ne pas la faire :
+;    ClasseControle-Setup.exe /VERYSILENT /ROLE=eleve /ROOM=CLASSE /MERGETASKS="!supprjeux"
+;
 ;  Compilation : voir build.ps1 (publie les deux .exe puis appelle ISCC).
 ; ============================================================================
 
 #define AppName "Classe_controle"
-#define AppVersion "1.9.0"
+#define AppVersion "1.9.1"
 #define Publisher "Classe_controle"
 
 [Setup]
@@ -46,11 +50,16 @@ CloseApplications=force
 [Languages]
 Name: "fr"; MessagesFile: "compiler:Languages\French.isl"
 
+[Tasks]
+; Uniquement pour un poste élève (le rôle est choisi sur la page précédente).
+Name: "supprjeux"; Description: "Supprimer les jeux préinstallés de Windows pour TOUS les utilisateurs (Solitaire, Candy Crush, Minecraft, Mahjong, Démineur…)"; GroupDescription: "Poste élève :"; Check: IsStudent
+
 [Files]
 ; Application unique, installée pour les deux modes.
 Source: "..\publish\app\ClasseControle.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\dist\GUIDE.txt"; DestDir: "{app}"; Flags: ignoreversion; Check: IsTeacher
 Source: "agent-setup.ps1"; DestDir: "{app}"; Flags: ignoreversion; Check: IsStudent
+Source: "remove-games.ps1"; DestDir: "{app}"; Flags: ignoreversion; Tasks: supprjeux
 
 [Icons]
 ; Uniquement pour le professeur : le poste élève n'a AUCUN raccourci.
@@ -63,6 +72,8 @@ Name: "{autoprograms}\Classe_controle — Guide"; Filename: "{app}\GUIDE.txt"; C
 Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall add rule name=""Classe_controle Console"" dir=in action=allow program=""{app}\ClasseControle.exe"" enable=yes profile=private,domain"; Flags: runhidden; Check: IsTeacher
 ; Élève : tâche planifiée à l'ouverture de session (mode --eleve) + règles de pare-feu.
 Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\agent-setup.ps1"" -Action Install -AgentPath ""{app}\ClasseControle.exe"""; Flags: runhidden waituntilterminated; StatusMsg: "Configuration du poste élève…"; Check: IsStudent
+; Jeux préinstallés : suppression pour tous les utilisateurs + retrait de l'image Windows.
+Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\remove-games.ps1"""; Flags: runhidden waituntilterminated; StatusMsg: "Suppression des jeux préinstallés de Windows (peut prendre une minute)…"; Tasks: supprjeux
 ; Démarre tout de suite dans la session de l'utilisateur.
 Filename: "{app}\ClasseControle.exe"; Parameters: "--eleve"; Flags: nowait runasoriginaluser skipifsilent; Check: IsStudent
 Filename: "{app}\ClasseControle.exe"; Parameters: "--prof"; Description: "Lancer la console professeur"; Flags: nowait postinstall skipifsilent runasoriginaluser; Check: IsTeacher

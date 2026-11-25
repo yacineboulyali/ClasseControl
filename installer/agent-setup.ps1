@@ -1,4 +1,4 @@
-<#
+﻿<#
   Configuration de l'agent élève Classe_controle (appelé par l'installateur).
 
   Install   : crée une tâche planifiée cachée qui lance l'agent à l'ouverture de
