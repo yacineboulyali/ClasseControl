@@ -1,0 +1,35 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Application unique Classe_controle : contient la console du professeur ET l'agent
+    élève. Le mode est choisi au lancement (option prof ou eleve), mémorisé par
+    l'installateur, ou demandé au premier démarrage.
+  -->
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <BuiltInComInteropSupport>true</BuiltInComInteropSupport>
+    <AssemblyName>ClasseControle</AssemblyName>
+    <RootNamespace>ClasseControle.App</RootNamespace>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>app.ico</ApplicationIcon>
+    <NoWarn>CA1416</NoWarn>
+    <Version>1.6.0</Version>
+    <Product>Classe_controle</Product>
+    <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Avalonia" Version="11.2.3" />
+    <PackageReference Include="Avalonia.Desktop" Version="11.2.3" />
+    <PackageReference Include="Avalonia.Themes.Fluent" Version="11.2.3" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\ClasseControle.Common\ClasseControle.Common.csproj" />
+    <ProjectReference Include="..\ClasseControle.Agent\ClasseControle.Agent.csproj" />
+    <ProjectReference Include="..\ClasseControle.Console\ClasseControle.Console.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <AvaloniaResource Include="app-icon.png" />
+  </ItemGroup>
+</Project>

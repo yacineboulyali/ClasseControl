@@ -1,7 +1,7 @@
 # Publication automatique d'une version.
 # À chaque envoi sur « main », lit le numéro de version dans installer/ClasseControle.iss
 # (#define AppVersion). Si la version GitHub « vX.Y.Z » n'existe pas encore, construit
-# sur Windows la console, l'agent, la version portable et l'installateur (Inno Setup),
+# sur Windows l'application unique, la version portable et l'installateur (Inno Setup),
 # puis crée la version avec tous les fichiers à télécharger.
 # Pour publier une nouvelle version : changer AppVersion, puis envoyer sur main.
 name: Publier une version
@@ -62,8 +62,9 @@ jobs:
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force out, portable\ClasseControle | Out-Null
-          Copy-Item publish\console\ClasseControle.Console.exe, publish\agent\ClasseControle.Agent.exe out\
-          Copy-Item publish\console\ClasseControle.Console.exe, publish\agent\ClasseControle.Agent.exe, dist\GUIDE.txt, dist\agent.ini portable\ClasseControle\
+          # Application unique : le mode (professeur / élève) est demandé au premier lancement.
+          Copy-Item publish\app\ClasseControle.exe out\
+          Copy-Item publish\app\ClasseControle.exe, dist\GUIDE.txt portable\ClasseControle\
           Compress-Archive -Path portable\ClasseControle -DestinationPath out\ClasseControle-portable.zip
           $setup = Get-ChildItem publish\installer\*.exe -ErrorAction SilentlyContinue | Select-Object -First 1
           if ($setup) { Copy-Item $setup.FullName out\ClasseControle-Setup.exe }

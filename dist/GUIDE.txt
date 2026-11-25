@@ -1,12 +1,17 @@
 ╔══════════════════════════════════════════════════════════════════╗
-║   CLASSE_CONTROLE — Supervision de salle informatique (v1.5)       ║
+║   CLASSE_CONTROLE — Supervision de salle informatique (v1.6)       ║
 ║   Équivalent libre et original de type "NetSupport School"         ║
 ╚══════════════════════════════════════════════════════════════════╝
 
-Deux programmes, AUCUNE installation requise (un seul .exe chacun) :
+UNE SEULE application, « ClasseControle.exe », pour tous les postes.
+Elle fonctionne en deux modes :
 
-  • ClasseControle.Console.exe  → POSTE DU PROFESSEUR (la console)
-  • ClasseControle.Agent.exe    → POSTE DE L'ÉLÈVE (l'agent)
+  • Mode PROFESSEUR → la console qui contrôle la salle
+  • Mode ÉLÈVE      → l'agent discret près de l'horloge
+
+Le mode est choisi à l'installation, ou au premier lancement de
+ClasseControle.exe (écran « Comment ce poste sera-t-il utilisé ? »).
+Options de lancement : --prof, --eleve, --choisir (redemander le mode).
 
 Tous les postes doivent être sur le MÊME réseau local (même Wi-Fi / même
 switch / même sous-réseau).
@@ -14,10 +19,10 @@ switch / même sous-réseau).
 ────────────────────────────────────────────────────────────────────
 0) INSTALLATION AVEC L'INSTALLATEUR (recommandé)
 ────────────────────────────────────────────────────────────────────
-  Lancez « ClasseControle-Setup-1.5.0.exe » en administrateur, puis
+  Lancez « ClasseControle-Setup.exe » en administrateur, puis
   choisissez le type de poste :
-    • Poste du PROFESSEUR → installe la console (menu Démarrer + Bureau).
-    • Poste ÉLÈVE → installe seulement l'agent : aucun raccourci, il
+    • Poste du PROFESSEUR → mode console (menu Démarrer + Bureau).
+    • Poste ÉLÈVE → mode agent : aucun raccourci, il
       démarre tout seul à chaque session et n'apparaît que près de
       l'horloge. Saisissez le code de salle demandé.
   Le pare-feu est configuré automatiquement.
@@ -26,10 +31,11 @@ switch / même sous-réseau).
 ────────────────────────────────────────────────────────────────────
 1) SUR CHAQUE POSTE ÉLÈVE
 ────────────────────────────────────────────────────────────────────
-  1. Copier « ClasseControle.Agent.exe » sur le poste.
-  2. Le lancer (double-clic). Il se réduit dans la zone de notification
-     (près de l'horloge) — une petite icône bleue.
-  3. Au 1er lancement, un fichier « agent.ini » est créé à côté de l'exe :
+  1. Copier « ClasseControle.exe » sur le poste.
+  2. Le lancer (double-clic) et choisir « Poste de l'élève », puis saisir
+     le code de salle. Il se réduit dans la zone de notification (près de
+     l'horloge) — une petite icône bleue.
+  3. Le code de salle est enregistré dans « agent.ini » à côté de l'exe :
 
          RoomCode=CLASSE
          DisplayName=NOM-DU-PC
@@ -46,18 +52,20 @@ switch / même sous-réseau).
   Pour fermer l'agent : clic droit sur l'icône → « Quitter l'agent »
   (le code de salle est demandé, pour éviter que les élèves le ferment).
 
-  Démarrage automatique (optionnel) : placez un raccourci de l'agent dans
-     shell:startup   (Win+R → taper « shell:startup » → Entrée)
+  Démarrage automatique : l'installateur s'en charge. Sans installateur,
+  placez dans shell:startup (Win+R → « shell:startup » → Entrée) un
+  raccourci vers « ClasseControle.exe --eleve ».
 
 ────────────────────────────────────────────────────────────────────
 2) SUR LE POSTE DU PROFESSEUR
 ────────────────────────────────────────────────────────────────────
-  1. Lancer « ClasseControle.Console.exe ».
+  1. Lancer « ClasseControle.exe » et choisir « Poste du professeur »
+     (ou utiliser le raccourci créé par l'installateur).
   2. Saisir le MÊME « Code de salle » que les agents (ex : CLASSE).
   3. Cliquer « 🔍 Rechercher les postes ».
      → Les postes élèves apparaissent sous forme de cartes.
 
-  NOUVELLE INTERFACE (v1.5) : ruban à onglets en haut, barre d'icônes
+  NOUVELLE INTERFACE (v1.6) : ruban à onglets en haut, barre d'icônes
   à gauche, vignettes des élèves au centre.
     • Clic sur une vignette = la sélectionner (Ctrl+clic : plusieurs,
       Échap ou clic dans le vide : tout désélectionner).
@@ -160,4 +168,4 @@ switch / même sous-réseau).
   • Outil destiné à un usage pédagogique encadré, sur des postes dont
     vous avez la responsabilité. Informez les utilisateurs.
 
-Bon cours !  —  Classe_controle v1.5
+Bon cours !  —  Classe_controle v1.6

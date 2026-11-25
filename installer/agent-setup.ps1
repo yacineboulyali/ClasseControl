@@ -14,7 +14,8 @@
 #>
 param(
     [ValidateSet('Install', 'Uninstall')] [string] $Action = 'Install',
-    [string] $AgentPath = ''
+    [string] $AgentPath = '',
+    [string] $AgentArguments = '--eleve'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -35,7 +36,7 @@ if (-not (Test-Path $AgentPath)) { throw "Agent introuvable : $AgentPath" }
 Remove-AgentConfig
 
 # --- Tâche planifiée : à l'ouverture de session de n'importe quel utilisateur ---
-$action    = New-ScheduledTaskAction -Execute $AgentPath -WorkingDirectory (Split-Path $AgentPath)
+$action    = New-ScheduledTaskAction -Execute $AgentPath -Argument $AgentArguments -WorkingDirectory (Split-Path $AgentPath)
 $trigger   = New-ScheduledTaskTrigger -AtLogOn
 # S-1-5-32-545 = groupe « Utilisateurs » : la tâche s'exécute dans la session de chaque élève.
 $principal = New-ScheduledTaskPrincipal -GroupId 'S-1-5-32-545' -RunLevel Highest

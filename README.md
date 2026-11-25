@@ -1,13 +1,17 @@
 # Classe_controle
 
 Outil **original** de supervision de salle informatique (type « NetSupport School »),
-écrit en **C# / .NET 8** avec interface **Avalonia**. Deux exécutables autonomes
-(aucune installation, aucun runtime à poser) pour Windows 10/11 64 bits.
+écrit en **C# / .NET 8** avec interface **Avalonia**. **Une seule application**
+autonome (`ClasseControle.exe`, aucun runtime à poser) pour Windows 10/11 64 bits,
+qui fonctionne selon le mode choisi :
 
-- **Console professeur** — découvre les postes, les verrouille, envoie messages
-  et fichiers, lance/ferme des applications, voit et contrôle un écran à distance.
-- **Agent élève** — tourne discrètement (icône de notification), exécute les
-  ordres de la console.
+- **Mode professeur (console)** — découvre les postes, les verrouille, envoie
+  messages et fichiers, lance/ferme des applications, voit et contrôle un écran.
+- **Mode élève (agent)** — tourne discrètement (icône de notification), exécute
+  les ordres de la console.
+
+Le mode est choisi à l'installation, ou au premier lancement (écran de choix).
+Options : `--prof`, `--eleve`, `--choisir` (redemander le mode).
 
 > Usage **pédagogique encadré** uniquement, sur des postes dont vous avez la
 > responsabilité. Ce n'est pas une copie de NetSupport : c'est une
@@ -15,18 +19,35 @@ Outil **original** de supervision de salle informatique (type « NetSupport Scho
 
 ## Téléchargement
 
-Dernière version : **[page des versions](https://github.com/yacineboulyali/ClasseControl/releases/latest)**
+**Une seule application** pour le professeur et pour les élèves : le mode est
+choisi à l'installation (ou au premier lancement de la version sans installation).
+
+### Dernière version
 
 | Fichier | À utiliser pour |
 |---|---|
 | [**ClasseControle-Setup.exe**](https://github.com/yacineboulyali/ClasseControl/releases/latest/download/ClasseControle-Setup.exe) | **Installateur (recommandé)** : au premier écran, choisir « Poste du professeur » ou « Poste élève » |
-| [ClasseControle-portable.zip](https://github.com/yacineboulyali/ClasseControl/releases/latest/download/ClasseControle-portable.zip) | Version sans installation : console + agent + guide + `agent.ini` |
-| [ClasseControle.Console.exe](https://github.com/yacineboulyali/ClasseControl/releases/latest/download/ClasseControle.Console.exe) | Console du professeur seule (un seul .exe) |
-| [ClasseControle.Agent.exe](https://github.com/yacineboulyali/ClasseControl/releases/latest/download/ClasseControle.Agent.exe) | Agent élève seul (un seul .exe) |
+| [ClasseControle.exe](https://github.com/yacineboulyali/ClasseControl/releases/latest/download/ClasseControle.exe) | L'application seule, sans installation : le mode est demandé au premier lancement |
+| [ClasseControle-portable.zip](https://github.com/yacineboulyali/ClasseControl/releases/latest/download/ClasseControle-portable.zip) | L'application + le guide d'utilisation |
 
 Windows 10/11 64 bits, aucun prérequis (.NET est inclus). Les .exe ne sont pas
 signés : au premier lancement, SmartScreen peut demander « Informations
 complémentaires » → « Exécuter quand même ».
+
+### Toutes les versions
+
+| Version | Téléchargements |
+|---|---|
+| **1.6.0** — application unique (prof + élève) | [Installateur](https://github.com/yacineboulyali/ClasseControl/releases/download/v1.6.0/ClasseControle-Setup.exe) · [ClasseControle.exe](https://github.com/yacineboulyali/ClasseControl/releases/download/v1.6.0/ClasseControle.exe) · [Portable (.zip)](https://github.com/yacineboulyali/ClasseControl/releases/download/v1.6.0/ClasseControle-portable.zip) · [Notes](https://github.com/yacineboulyali/ClasseControl/releases/tag/v1.6.0) |
+| **1.5.0** — couper Internet, documentation illustrée | [Installateur](https://github.com/yacineboulyali/ClasseControl/releases/download/v1.5.0/ClasseControle-Setup.exe) · [Console](https://github.com/yacineboulyali/ClasseControl/releases/download/v1.5.0/ClasseControle.Console.exe) · [Agent](https://github.com/yacineboulyali/ClasseControl/releases/download/v1.5.0/ClasseControle.Agent.exe) · [Portable (.zip)](https://github.com/yacineboulyali/ClasseControl/releases/download/v1.5.0/ClasseControle-portable.zip) · [Notes](https://github.com/yacineboulyali/ClasseControl/releases/tag/v1.5.0) |
+| 1.4 — interface à ruban, sondages, étoiles | [Code source (.zip)](https://github.com/yacineboulyali/ClasseControl/archive/1f3f734.zip) |
+| 1.3 — installateur, séance, équipes | [Code source (.zip)](https://github.com/yacineboulyali/ClasseControl/archive/c2425a7.zip) |
+| 1.2 — diffusion d'écran, restrictions, présence | [Code source (.zip)](https://github.com/yacineboulyali/ClasseControl/archive/9c210ae.zip) |
+| 1.1 — miniatures live, alimentation à distance | [Code source (.zip)](https://github.com/yacineboulyali/ClasseControl/archive/bd490c6.zip) |
+
+Les versions 1.1 à 1.4 n'ont pas été publiées en exécutables : leur code source
+se compile avec `installer\build.ps1` (voir « Compilation »). Liste complète :
+[page des versions](https://github.com/yacineboulyali/ClasseControl/releases).
 
 ## Aperçu en images
 
@@ -90,9 +111,10 @@ complémentaires » → « Exécuter quand même ».
 ## Architecture
 
 ```
+ClasseControle.App       Application unique ClasseControle.exe : choix du mode, lancement
 ClasseControle.Common    Protocole réseau partagé (messages + encodage fil)
-ClasseControle.Agent     Poste élève  (Avalonia + API Windows P/Invoke)
-ClasseControle.Console   Poste prof   (Avalonia)
+ClasseControle.Agent     Mode élève   (bibliothèque : Avalonia + API Windows P/Invoke)
+ClasseControle.Console   Mode prof    (bibliothèque : Avalonia)
 ```
 
 - **Découverte** : broadcast UDP (port 5401), filtré par un *code de salle*.
@@ -206,26 +228,23 @@ powershell -ExecutionPolicy Bypass -File installer\build.ps1
 Nécessite le SDK .NET 8.
 
 ```bash
-# Console professeur (exe autonome)
-dotnet publish ClasseControle.Console/ClasseControle.Console.csproj \
+# Application unique (exe autonome, console + agent)
+dotnet publish ClasseControle.App/ClasseControle.App.csproj \
   -c Release -r win-x64 --self-contained true \
   -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true \
-  -p:EnableCompressionInSingleFile=true -o publish/console
-
-# Agent élève (exe autonome)
-dotnet publish ClasseControle.Agent/ClasseControle.Agent.csproj \
-  -c Release -r win-x64 --self-contained true \
-  -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true \
-  -p:EnableCompressionInSingleFile=true -o publish/agent
+  -p:EnableCompressionInSingleFile=true -o publish/app
 ```
 
-> Les projets Agent/Console ciblent `net8.0` + Avalonia et se **compilent depuis
-> Linux ou Windows** ; les API Windows (capture, injection) ne s'exécutent que
-> sous Windows (cible `win-x64`).
+L'installateur se construit sous Windows avec `installer\build.ps1`
+(Inno Setup 6). Les versions sont publiées automatiquement sur GitHub :
+à chaque envoi sur `main`, si le numéro `AppVersion` de
+`installer/ClasseControle.iss` est nouveau, le workflow « Publier une version »
+construit l'application, la version portable et l'installateur, puis crée la
+version avec ses liens de téléchargement.
 
 ## Configuration de l'agent
 
-Fichier `agent.ini` créé à côté de l'exe au premier lancement :
+Fichier `agent.ini` à côté de l'exe (écrit par l'installateur ou par l'écran de choix) :
 
 ```ini
 RoomCode=CLASSE          # doit être identique à celui de la console

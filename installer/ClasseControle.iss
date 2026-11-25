@@ -1,9 +1,11 @@
 ; ============================================================================
 ;  Classe_controle — programme d'installation (Inno Setup 6)
-;  Un seul installateur : au début, on choisit le rôle du poste.
+;  Une seule application (ClasseControle.exe) qui contient la console du
+;  professeur ET l'agent élève. Au début de l'installation, on choisit le mode
+;  du poste ; il est enregistré dans classecontrole.ini à côté de l'exe.
 ;
-;   • Poste du PROFESSEUR : installe la console, raccourcis menu Démarrer + Bureau.
-;   • Poste ÉLÈVE         : installe uniquement l'agent en arrière-plan.
+;   • Poste du PROFESSEUR : mode console, raccourcis menu Démarrer + Bureau.
+;   • Poste ÉLÈVE         : mode agent en arrière-plan.
 ;                           Aucun raccourci, rien dans le menu Démarrer :
 ;                           l'agent démarre seul à chaque ouverture de session
 ;                           (tâche planifiée cachée, relancée en cas d'arrêt)
@@ -17,7 +19,7 @@
 ; ============================================================================
 
 #define AppName "Classe_controle"
-#define AppVersion "1.5.0"
+#define AppVersion "1.6.0"
 #define Publisher "Classe_controle"
 
 [Setup]
@@ -33,8 +35,8 @@ ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 OutputDir=..\publish\installer
 OutputBaseFilename=ClasseControle-Setup-{#AppVersion}
-SetupIconFile=..\ClasseControle.Console\app-icon.ico
-UninstallDisplayIcon={app}\Console\ClasseControle.Console.exe
+SetupIconFile=..\ClasseControle.App\app.ico
+UninstallDisplayIcon={app}\ClasseControle.exe
 UninstallDisplayName={code:UninstallName}
 Compression=lzma2/max
 SolidCompression=yes
@@ -45,35 +47,34 @@ CloseApplications=force
 Name: "fr"; MessagesFile: "compiler:Languages\French.isl"
 
 [Files]
-; --- Poste professeur ---
-Source: "..\publish\console\ClasseControle.Console.exe"; DestDir: "{app}\Console"; Flags: ignoreversion; Check: IsTeacher
+; Application unique, installée pour les deux modes.
+Source: "..\publish\app\ClasseControle.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\dist\GUIDE.txt"; DestDir: "{app}"; Flags: ignoreversion; Check: IsTeacher
-; --- Poste élève ---
-Source: "..\publish\agent\ClasseControle.Agent.exe"; DestDir: "{app}\Agent"; Flags: ignoreversion; Check: IsStudent
-Source: "agent-setup.ps1"; DestDir: "{app}\Agent"; Flags: ignoreversion; Check: IsStudent
+Source: "agent-setup.ps1"; DestDir: "{app}"; Flags: ignoreversion; Check: IsStudent
 
 [Icons]
-; Uniquement pour le professeur : l'agent élève n'a AUCUN raccourci.
-Name: "{autoprograms}\Classe_controle — Console professeur"; Filename: "{app}\Console\ClasseControle.Console.exe"; Check: IsTeacher
-Name: "{autodesktop}\Classe_controle"; Filename: "{app}\Console\ClasseControle.Console.exe"; Check: IsTeacher
+; Uniquement pour le professeur : le poste élève n'a AUCUN raccourci.
+Name: "{autoprograms}\Classe_controle — Console professeur"; Filename: "{app}\ClasseControle.exe"; Parameters: "--prof"; Check: IsTeacher
+Name: "{autodesktop}\Classe_controle"; Filename: "{app}\ClasseControle.exe"; Parameters: "--prof"; Check: IsTeacher
 Name: "{autoprograms}\Classe_controle — Guide"; Filename: "{app}\GUIDE.txt"; Check: IsTeacher
 
 [Run]
-; Pare-feu pour la console (réception des réponses de découverte).
-Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall add rule name=""Classe_controle Console"" dir=in action=allow program=""{app}\Console\ClasseControle.Console.exe"" enable=yes profile=private,domain"; Flags: runhidden; Check: IsTeacher
-; Agent : tâche planifiée à l'ouverture de session + règles de pare-feu.
-Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\Agent\agent-setup.ps1"" -Action Install -AgentPath ""{app}\Agent\ClasseControle.Agent.exe"""; Flags: runhidden waituntilterminated; StatusMsg: "Configuration de l'agent élève…"; Check: IsStudent
-; Démarre l'agent tout de suite dans la session de l'utilisateur.
-Filename: "{app}\Agent\ClasseControle.Agent.exe"; Flags: nowait runasoriginaluser skipifsilent; Check: IsStudent
-Filename: "{app}\Console\ClasseControle.Console.exe"; Description: "Lancer la console professeur"; Flags: nowait postinstall skipifsilent runasoriginaluser; Check: IsTeacher
+; Pare-feu (les deux modes utilisent le même exécutable).
+Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall add rule name=""Classe_controle Console"" dir=in action=allow program=""{app}\ClasseControle.exe"" enable=yes profile=private,domain"; Flags: runhidden; Check: IsTeacher
+; Élève : tâche planifiée à l'ouverture de session (mode --eleve) + règles de pare-feu.
+Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\agent-setup.ps1"" -Action Install -AgentPath ""{app}\ClasseControle.exe"""; Flags: runhidden waituntilterminated; StatusMsg: "Configuration du poste élève…"; Check: IsStudent
+; Démarre tout de suite dans la session de l'utilisateur.
+Filename: "{app}\ClasseControle.exe"; Parameters: "--eleve"; Flags: nowait runasoriginaluser skipifsilent; Check: IsStudent
+Filename: "{app}\ClasseControle.exe"; Parameters: "--prof"; Description: "Lancer la console professeur"; Flags: nowait postinstall skipifsilent runasoriginaluser; Check: IsTeacher
 
 [UninstallRun]
-Filename: "{sys}\taskkill.exe"; Parameters: "/F /IM ClasseControle.Agent.exe"; Flags: runhidden; RunOnceId: "KillAgent"
-Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\Agent\agent-setup.ps1"" -Action Uninstall"; Flags: runhidden waituntilterminated; RunOnceId: "AgentCleanup"
+Filename: "{sys}\taskkill.exe"; Parameters: "/F /IM ClasseControle.exe"; Flags: runhidden; RunOnceId: "KillApp"
+Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\agent-setup.ps1"" -Action Uninstall"; Flags: runhidden waituntilterminated; RunOnceId: "AgentCleanup"
 Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall delete rule name=""Classe_controle Console"""; Flags: runhidden; RunOnceId: "ConsoleFw"
 
 [UninstallDelete]
-Type: files; Name: "{app}\Agent\agent.ini"
+Type: files; Name: "{app}\agent.ini"
+Type: files; Name: "{app}\classecontrole.ini"
 Type: files; Name: "{app}\role.txt"
 
 [Code]
@@ -169,6 +170,9 @@ begin
   if CurStep = ssPostInstall then
   begin
     SaveStringToFile(ExpandConstant('{app}\role.txt'), Role, False);
+    { Mode lu par ClasseControle.exe au démarrage (dans Program Files : non modifiable par les élèves). }
+    SaveStringToFile(ExpandConstant('{app}\classecontrole.ini'),
+      '# Mode de Classe_controle sur ce poste (prof ou eleve)' + #13#10 + 'Mode=' + Role + #13#10, False);
     if IsStudent() then
     begin
       Name := Trim(AgentPage.Values[1]);
@@ -176,7 +180,7 @@ begin
       Ini := '# Configuration de l''agent Classe_controle' + #13#10 +
              'RoomCode=' + Trim(AgentPage.Values[0]) + #13#10 +
              'DisplayName=' + Name + #13#10;
-      SaveStringToFile(ExpandConstant('{app}\Agent\agent.ini'), Ini, False);
+      SaveStringToFile(ExpandConstant('{app}\agent.ini'), Ini, False);
     end;
   end;
 end;

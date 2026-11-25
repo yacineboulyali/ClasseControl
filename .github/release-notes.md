@@ -1,25 +1,26 @@
-## Classe_controle 1.5.0
+## Classe_controle 1.6.0 — une seule application
 
-Supervision de salle informatique pour Windows 10/11 (64 bits). Aucun prérequis : .NET est inclus dans les fichiers.
+Supervision de salle informatique pour Windows 10/11 (64 bits). Aucun prérequis : .NET est inclus.
+
+**Nouveau : la console du professeur et l'agent élève sont réunis dans une seule application, `ClasseControle.exe`.**
+Le mode est choisi à l'installation (« Poste du professeur » ou « Poste élève »), ou au premier lancement de la version portable.
 
 ### Quel fichier télécharger ?
 
 | Fichier | Pour |
 |---|---|
-| **ClasseControle-Setup.exe** | **Installateur recommandé** : au premier écran, choisir « Poste du professeur » (console + raccourcis) ou « Poste élève » (agent en arrière-plan, sans raccourci). Déploiement silencieux : `/VERYSILENT /ROLE=eleve /ROOM=CLASSE` |
-| ClasseControle-portable.zip | Sans installation : console + agent + guide + `agent.ini` |
-| ClasseControle.Console.exe | Console du professeur seule |
-| ClasseControle.Agent.exe | Agent élève seul |
+| **ClasseControle-Setup.exe** | **Installateur recommandé** : au premier écran, choisir le mode du poste. Mode élève : démarrage automatique en arrière-plan, sans raccourci. Déploiement silencieux : `/VERYSILENT /ROLE=eleve /ROOM=CLASSE` ou `/VERYSILENT /ROLE=prof` |
+| ClasseControle.exe | L'application seule, sans installation : au premier lancement, choisir « Poste du professeur » ou « Poste de l'élève » |
+| ClasseControle-portable.zip | L'application + le guide d'utilisation |
 
+Options de lancement : `ClasseControle.exe --prof` (console), `--eleve` (agent), `--choisir` (redemander le mode).
 
-### Nouveautés
-- 📵 **Couper Internet** sur la classe ou la sélection (le réseau de la salle reste joignable)
-- 👥 **Document d'équipe fiabilisé** : plusieurs élèves peuvent écrire en même temps sans mélanger leurs phrases ; **modèle de document** à compléter
-- 🎨 Interface à ruban, icônes flat monochromes, **zoom des vignettes** (−, +, Ajuster, Ctrl + molette)
-- 🎓 Séance avec identification des élèves, 🌐 ouverture de site, 🖼 écran de verrouillage personnalisé, 📡 présentation de l'écran d'un élève
-- 🌙 Écran noir, 💬 discussion, 📢 annonce audio, ⭐ étoiles, 📊 sondages, ✋ demandes d'aide, 🚀 lancement rapide, 🖥 bureau élève
-- 📋 Liste de présence, 📜 journal des actions
+### Nouveautés de la 1.6.0
+- Une seule application pour les deux modes, avec écran de choix au premier démarrage
+- Installateur simplifié (un seul fichier installé), icône Windows de l'application
 
+### Rappel (1.5.0)
+Couper Internet, document d'équipe fiable à plusieurs, modèle de document, interface à ruban, zoom des vignettes, séance avec identification, sondages, étoiles, discussion, annonce audio…
 Voir le [README](https://github.com/yacineboulyali/ClasseControl#aperçu-en-images) pour les captures et GIF animés.
 
 ### Remarques
