@@ -13,6 +13,65 @@ Outil **original** de supervision de salle informatique (type « NetSupport Scho
 > responsabilité. Ce n'est pas une copie de NetSupport : c'est une
 > implémentation indépendante d'un protocole simple.
 
+## Aperçu en images
+
+> Captures réalisées avec la vraie console et six postes élèves simulés.
+
+### Console du professeur
+
+![Vue générale de la console](docs/images/console-vue-generale.png)
+*Vue générale : ruban de commandes en haut, barre latérale à gauche, une vignette par poste avec l'écran de l'élève en direct, son nom, ses étoiles et ses badges (« Aide », « Verrouillé », « Internet coupé »). Le zoom des vignettes est en bas à droite.*
+
+![Démarrer la séance](docs/images/demarrer-seance.gif)
+*Démarrer la séance : le professeur donne un titre, chaque élève saisit son nom sur son poste et les noms apparaissent un à un sur les vignettes.*
+
+![Main levée](docs/images/main-levee.gif)
+*Main levée : l'élève demande de l'aide depuis l'icône près de l'horloge ; sa vignette passe en orange, remonte en tête, et la demande s'ajoute à la liste « Demandes d'aide ».*
+
+![Verrouiller et écran noir](docs/images/verrouiller-ecran-noir.gif)
+*Verrouiller / Écran noir : on sélectionne des postes (clic, Ctrl+clic) puis on les verrouille ou on leur met un écran noir ; « Déverrouiller » sans sélection rend la main à toute la classe.*
+
+![Couper Internet](docs/images/couper-internet.gif)
+*Couper Internet : un clic coupe l'accès à Internet sur la classe (ou la sélection) tout en gardant le réseau de la salle ; un second clic le rétablit.*
+
+![Zoom des vignettes](docs/images/zoom-vignettes.gif)
+*Zoom : − / + / curseur pour agrandir ou réduire les écrans des élèves, « Ajuster » pour tout voir sans défiler (aussi avec Ctrl + molette).*
+
+![Sondage rapide](docs/images/sondage.gif)
+*Sondage rapide : une question, des réponses toutes prêtes (Oui/Non, Compris ?, A B C D…) et les résultats qui s'affichent en direct.*
+
+![Équipes et document partagé](docs/images/equipes-document-partage.gif)
+*Équipes : répartition aléatoire selon le nombre d'élèves par équipe, puis chaque équipe complète en même temps un document partagé (ici à partir d'un modèle) ; le professeur suit tout en direct.*
+
+![Menu contextuel d'une vignette](docs/images/console-menu-contextuel.png)
+*Clic droit sur une vignette : toutes les actions pour ce poste (ou la sélection) — verrouiller, écran noir, couper Internet, voir, fichier, discussion, message, lancer, présenter, étoiles, alimentation.*
+
+![Liste de présence](docs/images/console-presence.png)
+*Liste de présence : élève, poste, heure d'arrivée et de départ, mains levées ; export CSV pour Excel.*
+
+![Discussion avec un élève](docs/images/console-discussion.png)
+*Discussion : quand un élève écrit au professeur, la fenêtre s'ouvre automatiquement sur la console.*
+
+### Poste de l'élève
+
+![Entrée en séance](docs/images/eleve-entree-seance.png)
+*Entrée en séance : pendant une séance, l'élève doit saisir son prénom et son nom pour accéder à son poste.*
+
+![Écran verrouillé personnalisé](docs/images/eleve-ecran-verrouille.png)
+*Écran verrouillé : texte et image choisis par le professeur dans ⚙ Paramètres.*
+
+![Sondage côté élève](docs/images/eleve-sondage.png)
+*Sondage : l'élève répond d'un clic.*
+
+![Espace d'équipe](docs/images/eleve-espace-equipe.png)
+*Espace d'équipe : document partagé édité à plusieurs en même temps et discussion de l'équipe.*
+
+![Message du professeur](docs/images/eleve-message.png)
+*Message du professeur : consigne affichée au premier plan.*
+
+![Discussion côté élève](docs/images/eleve-discussion.png)
+*Discussion avec le professeur, ouverte depuis l'icône de l'agent.*
+
 ## Architecture
 
 ```
@@ -77,8 +136,14 @@ ClasseControle.Console   Poste prof   (Avalonia)
 - 📡 **Diffuser l'écran d'un élève** à toute la classe (relayé par la console)
 - 👥 **Équipes** : répartition aléatoire (nombre d'élèves par équipe) ou
   manuelle, avec pour chaque équipe un **document partagé** édité à plusieurs
-  en même temps et une **discussion** ; suivi en direct et export des travaux
+  en même temps et une **discussion** ; **modèle de document** (plan à
+  compléter) ; suivi en direct et export des travaux. La fusion des saisies
+  simultanées repose sur une transformation opérationnelle testée (chaque
+  phrase reste d'un seul tenant)
 - 🌙 **Écran noir** (attirer l'attention), distinct du verrouillage
+- 📵 **Couper Internet** sur la classe ou la sélection, le réseau de la salle
+  restant joignable (pare-feu Windows si l'agent est administrateur, sinon
+  proxy système) ; Internet est toujours rétabli à l'arrêt de l'agent
 - 💬 **Discussion** professeur ↔ élève (l'élève peut écrire depuis l'icône)
 - 📢 **Annonce audio** : le micro du professeur diffusé en direct
 - ⭐ **Récompenses** : donner / retirer des étoiles, visibles sur la vignette,
@@ -105,8 +170,8 @@ Un seul installateur ; au premier écran on choisit le **type de poste** :
 Déploiement silencieux sur toute une salle :
 
 ```bat
-ClasseControle-Setup-1.4.0.exe /VERYSILENT /ROLE=eleve /ROOM=CLASSE
-ClasseControle-Setup-1.4.0.exe /VERYSILENT /ROLE=prof
+ClasseControle-Setup-1.5.0.exe /VERYSILENT /ROLE=eleve /ROOM=CLASSE
+ClasseControle-Setup-1.5.0.exe /VERYSILENT /ROLE=prof
 ```
 
 Pour construire l'installateur (sous Windows, avec le SDK .NET 8 et

@@ -30,6 +30,7 @@ internal sealed class StudentTile
     private readonly ContentControl _overlayGlyph = new() { HorizontalAlignment = HorizontalAlignment.Center };
     private readonly TextBlock _overlayText = new() { Foreground = Brushes.White, FontSize = 13, FontWeight = FontWeight.SemiBold, HorizontalAlignment = HorizontalAlignment.Center };
     private readonly Border _handBadge;
+    private readonly Border _netBadge;
     private readonly TextBlock _footStudent = new() { FontSize = 11.5, FontWeight = FontWeight.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis };
     private readonly TextBlock _footUser = new() { FontSize = 11, Foreground = Palette.Muted, TextTrimming = TextTrimming.CharacterEllipsis, HorizontalAlignment = HorizontalAlignment.Center };
     private readonly TextBlock _footMachine = new() { FontSize = 11, Foreground = Palette.Muted, TextTrimming = TextTrimming.CharacterEllipsis, HorizontalAlignment = HorizontalAlignment.Right };
@@ -97,10 +98,30 @@ internal sealed class StudentTile
                 },
             },
         };
+        _netBadge = new Border
+        {
+            Background = Palette.Danger,
+            CornerRadius = new CornerRadius(12),
+            Padding = new Thickness(7, 3),
+            Margin = new Thickness(6),
+            HorizontalAlignment = HorizontalAlignment.Left,
+            VerticalAlignment = VerticalAlignment.Bottom,
+            IsVisible = false,
+            Child = new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                Spacing = 4,
+                Children =
+                {
+                    Glyph.Make(Glyph.WebOff, 13, Brushes.White),
+                    new TextBlock { Text = "Internet coupé", Foreground = Brushes.White, FontSize = 11, FontWeight = FontWeight.Bold },
+                },
+            },
+        };
         _thumbBox = new Border
         {
             Background = new SolidColorBrush(Color.FromRgb(30, 38, 52)),
-            Child = new Grid { Children = { _thumb, _overlay, _handBadge } },
+            Child = new Grid { Children = { _thumb, _overlay, _handBadge, _netBadge } },
         };
 
         var cardContent = new DockPanel();
@@ -228,6 +249,7 @@ internal sealed class StudentTile
         ToolTip.SetTip(Root, $"{Conn.Info.MachineName} — {Conn.Info.IpAddress}\n{Status}");
 
         _handBadge.IsVisible = Conn.IsHandRaised;
+        _netBadge.IsVisible = Conn.IsConnected && Conn.IsInternetBlocked;
         if (!Conn.IsConnected)
         {
             ShowOverlay(Glyph.Cancel, Status.Length > 0 ? Status : "Hors ligne");

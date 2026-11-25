@@ -81,12 +81,33 @@ internal sealed class GroupsWindow : Window
             },
         };
 
+        var template = new TextBox
+        {
+            Text = _groups.Template.Length > 0 ? _groups.Template : "1) Introduction : \n2) Matériel : \n3) Hypothèse : \n4) Conclusion : ",
+            AcceptsReturn = true, Height = 92, FontSize = 12, TextWrapping = TextWrapping.Wrap,
+        };
+        _groups.Template = template.Text ?? "";
+        template.TextChanged += (_, _) => _groups.Template = template.Text ?? "";
+        var templateBox = new StackPanel
+        {
+            Margin = new Thickness(0, 10, 0, 0),
+            Children =
+            {
+                new TextBlock { Text = "Modèle du document d'équipe (consigne, plan à compléter)", FontWeight = FontWeight.SemiBold },
+                Ui.Hint("Copié dans le document de chaque nouvelle équipe à l'ouverture."),
+                new Border { Height = 4 },
+                template,
+            },
+        };
+
         var left = new DockPanel { Margin = new Thickness(16, 10, 8, 0) };
         var leftTitle = new TextBlock { Text = "Répartition (modifiable à la main)", FontWeight = FontWeight.SemiBold, Margin = new Thickness(0, 0, 0, 6) };
         DockPanel.SetDock(leftTitle, Dock.Top);
         DockPanel.SetDock(_info, Dock.Bottom);
+        DockPanel.SetDock(templateBox, Dock.Bottom);
         left.Children.Add(leftTitle);
         left.Children.Add(_info);
+        left.Children.Add(templateBox);
         left.Children.Add(new ScrollViewer { Content = _assignList });
 
         var right = new DockPanel { Margin = new Thickness(8, 10, 16, 0) };

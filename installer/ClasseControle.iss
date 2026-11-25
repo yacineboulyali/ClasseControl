@@ -17,7 +17,7 @@
 ; ============================================================================
 
 #define AppName "Classe_controle"
-#define AppVersion "1.4.0"
+#define AppVersion "1.5.0"
 #define Publisher "Classe_controle"
 
 [Setup]

@@ -23,7 +23,7 @@ public static class Net
 
 public static class AgentInfo
 {
-    public const string Version = "1.4.0";
+    public const string Version = "1.5.0";
 }
 
 /// <summary>Types de messages échangés sur le canal de contrôle TCP.</summary>
@@ -52,6 +52,7 @@ public enum MessageType
     AudioStop = 68,       // fin d'annonce
     Reward = 71,          // récompense (étoiles) donnée / retirée à l'élève
     StudentDesktop = 72,  // action sur le bureau élève (réduire / fermer les fenêtres)
+    InternetBlock = 73,   // couper / rétablir l'accès à Internet (le réseau local reste joignable)
     Survey = 75,          // sondage rapide envoyé aux élèves
     SurveyClose = 76,     // fin du sondage
     SetRestrictions = 70, // liste d'applications / sites interdits
@@ -262,10 +263,11 @@ public sealed class GroupOpenPayload
 
 /// <summary>
 /// Document partagé du groupe.
-/// Élève → prof : nouveau texte complet calculé sur <see cref="Revision"/> (révision de base),
-///                numéroté par <see cref="Seq"/>.
-/// Prof → élève : texte fusionné faisant foi à la révision <see cref="Revision"/> ;
-///                <see cref="AckSeq"/> &gt; 0 seulement pour l'auteur de la modification.
+/// Élève → prof : modifications <see cref="Ops"/> écrites sur la révision <see cref="Revision"/>,
+///                série numérotée <see cref="Seq"/>.
+/// Prof → élève : modifications appliquées (<see cref="Ops"/>, vides pour l'auteur), révision
+///                obtenue, texte complet faisant foi (<see cref="Text"/>) et, pour l'auteur
+///                seulement, l'accusé <see cref="AckSeq"/>.
 /// </summary>
 public sealed class GroupDocPayload
 {
@@ -274,6 +276,7 @@ public sealed class GroupDocPayload
     public int Revision { get; set; }
     public int Seq { get; set; }
     public int AckSeq { get; set; }
+    public List<SpliceDto> Ops { get; set; } = new();
 }
 
 public sealed class GroupChatPayload
@@ -340,4 +343,9 @@ public sealed class SurveyAnswerPayload
 public sealed class SurveyClosePayload
 {
     public string Id { get; set; } = "";
+}
+
+public sealed class InternetBlockPayload
+{
+    public bool Blocked { get; set; }
 }

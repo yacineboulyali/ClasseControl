@@ -10,7 +10,7 @@ internal sealed class TeamGroup
     public string Id { get; } = Guid.NewGuid().ToString("N")[..8];
     public string Name => $"Équipe {Number}";
     public List<string> MemberKeys { get; } = new();
-    public SharedDocument Doc { get; } = new();
+    public SharedDocument Doc { get; init; } = new();
     public List<GroupChatPayload> Chat { get; } = new();
     /// <summary>Sérialise le traitement des messages du groupe (ordre des envois garanti).</summary>
     public SemaphoreSlim Gate { get; } = new(1, 1);
@@ -30,6 +30,8 @@ internal sealed class GroupManager
     /// <summary>Répartition en préparation : clé du poste → numéro d'équipe (0 = aucune).</summary>
     public Dictionary<string, int> Draft { get; } = new();
     public bool IsOpen { get; private set; }
+    /// <summary>Modèle de document (consigne, plan à compléter) donné aux nouvelles équipes.</summary>
+    public string Template { get; set; } = "";
     public event Action? Changed;
 
     public GroupManager(Func<IEnumerable<AgentConnection>> connections) => _connections = connections;
@@ -70,7 +72,7 @@ internal sealed class GroupManager
             }
             foreach (var (n, keys) in byNumber)
             {
-                if (!_groups.TryGetValue(n, out var g)) _groups[n] = g = new TeamGroup { Number = n };
+                if (!_groups.TryGetValue(n, out var g)) _groups[n] = g = new TeamGroup { Number = n, Doc = new SharedDocument(Template) };
                 removedMembers.AddRange(g.MemberKeys.Except(keys).Select(k => (k, g.Id)));
                 g.MemberKeys.Clear();
                 g.MemberKeys.AddRange(keys);
@@ -131,13 +133,18 @@ internal sealed class GroupManager
         await g.Gate.WaitAsync();
         try
         {
-            var (text, rev) = g.Doc.Submit(p.Revision, p.Text);
+            var (applied, text, rev) = g.Doc.Submit(p.Revision, p.Ops.Select(o => o.ToSplice()).ToList());
+            var ops = applied.Select(SpliceDto.From).ToList();
             foreach (var key in g.MemberKeys)
             {
                 if (Find(key) is not { IsConnected: true } c) continue;
+                bool author = c == from;
+                // L'auteur reçoit l'accusé ; les autres reçoivent les modifications à appliquer.
                 await c.SendGroupDoc(new GroupDocPayload
                 {
-                    GroupId = g.Id, Text = text, Revision = rev, AckSeq = c == from ? p.Seq : 0,
+                    GroupId = g.Id, Text = text, Revision = rev,
+                    AckSeq = author ? p.Seq : 0,
+                    Ops = author ? new List<SpliceDto>() : ops,
                 });
             }
         }

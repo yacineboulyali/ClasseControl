@@ -1,5 +1,5 @@
 ╔══════════════════════════════════════════════════════════════════╗
-║   CLASSE_CONTROLE — Supervision de salle informatique (v1.4)       ║
+║   CLASSE_CONTROLE — Supervision de salle informatique (v1.5)       ║
 ║   Équivalent libre et original de type "NetSupport School"         ║
 ╚══════════════════════════════════════════════════════════════════╝
 
@@ -14,7 +14,7 @@ switch / même sous-réseau).
 ────────────────────────────────────────────────────────────────────
 0) INSTALLATION AVEC L'INSTALLATEUR (recommandé)
 ────────────────────────────────────────────────────────────────────
-  Lancez « ClasseControle-Setup-1.4.0.exe » en administrateur, puis
+  Lancez « ClasseControle-Setup-1.5.0.exe » en administrateur, puis
   choisissez le type de poste :
     • Poste du PROFESSEUR → installe la console (menu Démarrer + Bureau).
     • Poste ÉLÈVE → installe seulement l'agent : aucun raccourci, il
@@ -57,7 +57,7 @@ switch / même sous-réseau).
   3. Cliquer « 🔍 Rechercher les postes ».
      → Les postes élèves apparaissent sous forme de cartes.
 
-  NOUVELLE INTERFACE (v1.4) : ruban à onglets en haut, barre d'icônes
+  NOUVELLE INTERFACE (v1.5) : ruban à onglets en haut, barre d'icônes
   à gauche, vignettes des élèves au centre.
     • Clic sur une vignette = la sélectionner (Ctrl+clic : plusieurs,
       Échap ou clic dans le vide : tout désélectionner).
@@ -100,6 +100,12 @@ switch / même sous-réseau).
         même temps) et une discussion. Vous suivez tout en direct,
         pouvez écrire à une équipe, et « 💾 Exporter les travaux ».
      ⚙ Paramètres → texte et image de l'écran de verrouillage.
+     📵 Couper Internet (onglet Classe, groupe Accès web) → coupe
+        Internet sur la classe ou les postes sélectionnés ; le réseau
+        de la salle reste disponible. Recliquez (« Rétablir Internet »)
+        pour le rendre. Aussi dans le clic droit sur une vignette.
+     Équipes → « Modèle du document d'équipe » : plan ou consigne
+        copié dans le document de chaque équipe à l'ouverture.
      📺 Diffuser mon écran → votre écran s'affiche chez les élèves.
         Option « plein écran » : clavier/souris élèves bloqués.
         Recliquez (« ⏹ Arrêter la diffusion ») pour rendre la main.
@@ -154,4 +160,4 @@ switch / même sous-réseau).
   • Outil destiné à un usage pédagogique encadré, sur des postes dont
     vous avez la responsabilité. Informez les utilisateurs.
 
-Bon cours !  —  Classe_controle v1.4
+Bon cours !  —  Classe_controle v1.5

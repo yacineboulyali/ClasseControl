@@ -39,7 +39,10 @@ internal sealed class MainWindow : Window
     private bool _thumbsLive = true;
 
     private Button _scanBtn = null!, _lessonBtn = null!, _showBtn = null!, _announceBtn = null!,
-                   _webBtn = null!, _helpBtn = null!, _liveBtn = null!, _sideAnnounce = null!;
+                   _webBtn = null!, _helpBtn = null!, _liveBtn = null!, _sideAnnounce = null!,
+                   _netBtn = null!, _sideNet = null!;
+    /// <summary>Coupure d'Internet décidée pour toute la classe (réappliquée aux postes qui se reconnectent).</summary>
+    private bool _internetCutForClass;
     private readonly Dictionary<int, Button> _sideTabs = new();
     private readonly Slider _zoom = new() { Minimum = ZoomMin, Maximum = ZoomMax, Width = 150, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(4, -6, 4, -6) };
     private readonly TextBlock _zoomText = new() { Width = 44, FontSize = 12, VerticalAlignment = VerticalAlignment.Center, TextAlignment = TextAlignment.Right, Foreground = Palette.Muted };
@@ -229,7 +232,8 @@ internal sealed class MainWindow : Window
             ("-", () => { }),
             ("Modifier les listes…", () => Run(EditRestrictionsAsync)),
             ("Ouvrir un site sur les postes…", () => Run(OpenWebsiteAsync))));
-        var web = Ribbon.Group("Accès web", _webBtn);
+        _netBtn = Ribbon.Big(Glyph.WebOff, "Couper Internet", () => Run(() => ToggleInternetAsync(Targets())));
+        var web = Ribbon.Group("Accès web", _webBtn, _netBtn);
 
         _announceBtn = Ribbon.Big(Glyph.Mic, "Annonce", () => Run(ToggleAnnounceAsync));
         _helpBtn = Ribbon.Big(Glyph.Help, "Demandes d'aide", menu: HelpMenu());
@@ -361,6 +365,7 @@ internal sealed class MainWindow : Window
                 Item(Glyph.Projector, "Montrer mon écran", () => Run(ShowMyScreenAsync)),
                 _sideAnnounce,
                 Item(Glyph.Globe, "Accès web et restrictions", () => Run(EditRestrictionsAsync)),
+                (_sideNet = Item(Glyph.WebOff, "Couper / rétablir Internet", () => Run(() => ToggleInternetAsync(Targets())))),
                 Item(Glyph.Launch, "Ouvrir un site sur les postes", () => Run(OpenWebsiteAsync)),
                 Item(Glyph.List, "Liste de présence", OpenAttendance),
             },
@@ -526,6 +531,9 @@ internal sealed class MainWindow : Window
                 locked ? Cmd(Glyph.Unlock, "Déverrouiller", () => Run(() => UnlockAsync(targets)), false)
                        : Cmd(Glyph.Lock, "Verrouiller", () => Run(() => LockAsync(targets)), false),
                 Cmd(Glyph.Blank, "Écran noir", () => Run(() => BlankAsync(targets)), false),
+                tile.Conn.IsInternetBlocked
+                    ? Cmd(Glyph.Globe, "Rétablir Internet", () => Run(() => SetInternetAsync(targets, false)), false)
+                    : Cmd(Glyph.WebOff, "Couper Internet", () => Run(() => SetInternetAsync(targets, true)), false),
             },
         };
         var main = new StackPanel
@@ -670,6 +678,8 @@ internal sealed class MainWindow : Window
             try { await c.AcquireStream("thumb", ThumbProfile); } catch { }
         if (_restrictions.Enabled)
             try { await c.SetRestrictions(_restrictions); } catch { }
+        if (_internetCutForClass || c.IsInternetBlocked)
+            try { await c.SetInternet(true); } catch { }
         if (_broadcaster.IsRunning)
             try { await _broadcaster.AddAsync(c); } catch { }
         if (_lesson != null)
@@ -1023,6 +1033,35 @@ internal sealed class MainWindow : Window
     {
         SetBigLabel(_showBtn, live ? "Diffusion en cours" : "Montrer");
         SetState(_showBtn, live ? "live" : null);
+    }
+
+    // ---------- Internet ----------
+    /// <summary>Bouton du ruban : coupe Internet sur les cibles, ou le rétablit s'il est déjà coupé partout.</summary>
+    private Task ToggleInternetAsync(IReadOnlyList<AgentConnection> targets)
+    {
+        bool allCut = targets.Count > 0 && targets.All(t => t.IsInternetBlocked);
+        return SetInternetAsync(targets, !allCut);
+    }
+
+    private async Task SetInternetAsync(IReadOnlyList<AgentConnection> targets, bool blocked)
+    {
+        if (targets.Count == 0) { SetStatus("Aucun poste connecté."); return; }
+        foreach (var c in targets) { try { await c.SetInternet(blocked); } catch { } }
+        if (IsWholeClass(targets)) _internetCutForClass = blocked;
+        Log(blocked ? "Internet coupé" : "Internet rétabli", targets);
+        RefreshTiles(targets);
+        UpdateInternetUi();
+        SetStatus(blocked
+            ? $"Internet coupé sur {targets.Count} poste(s) — le réseau de la salle reste accessible."
+            : $"Internet rétabli sur {targets.Count} poste(s).");
+    }
+
+    private void UpdateInternetUi()
+    {
+        int cut = _tiles.Values.Count(t => t.Conn.IsConnected && t.Conn.IsInternetBlocked);
+        SetBigLabel(_netBtn, cut > 0 ? $"Rétablir Internet ({cut})" : "Couper Internet");
+        SetState(_netBtn, cut > 0 ? "live" : null);
+        SetState(_sideNet, cut > 0 ? "live" : null);
     }
 
     // ---------- Accès web / restrictions ----------

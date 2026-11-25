@@ -13,10 +13,10 @@ namespace ClasseControle.Agent;
 /// Espace d'équipe de l'élève : un document partagé que tous les membres du
 /// groupe éditent en même temps, et une discussion de groupe.
 ///
-/// Synchronisation : le professeur fait foi. L'élève envoie son texte complet
-/// (avec la révision sur laquelle il l'a écrit) après une courte pause de frappe ;
-/// une seule modification est « en vol » à la fois. Les textes reçus des autres
-/// sont fusionnés avec ce que l'élève est en train de taper (rien n'est perdu).
+/// Synchronisation (transformation opérationnelle) : chaque frappe est convertie en
+/// modification (position, suppression, insertion) et envoyée au professeur, qui fait
+/// foi ; les modifications des autres sont transformées contre les frappes en attente,
+/// et le curseur de l'élève suit. Voir <see cref="SharedDocumentClient"/>.
 /// </summary>
 internal sealed class TeamWindow : Window
 {
@@ -32,16 +32,13 @@ internal sealed class TeamWindow : Window
     private readonly Action<GroupDocPayload> _sendDoc;
     private readonly Action<string> _sendChat;
 
-    private string _groupId = "";
-    private int _rev;
-    private string _synced = "";     // texte faisant foi à la révision _rev
-    private string _lastSent = "";   // texte envoyé, en attente d'accusé
-    private int _seq;
-    private int _inflight;           // numéro de la modification en vol (0 = aucune)
+    private readonly SharedDocumentClient _sync = new();
+    private string _shown = "";      // texte de la zone tel que connu de _sync
     private bool _applying;
+    private bool _captureQueued;
     private bool _allowClose;
 
-    public string GroupId => _groupId;
+    public string GroupId => _sync.GroupId;
 
     public TeamWindow(Action<GroupDocPayload> sendDoc, Action<string> sendChat)
     {
@@ -67,10 +64,11 @@ internal sealed class TeamWindow : Window
         };
         _doc.TextChanged += (_, _) =>
         {
-            if (_applying) return;
-            _state.Text = "✏️ modification…";
-            _debounce!.Stop();
-            _debounce.Start();
+            if (_applying || _captureQueued) return;
+            // La zone de texte déplace le curseur juste après cet événement : on lit la
+            // modification un instant plus tard, avec la bonne position de curseur.
+            _captureQueued = true;
+            Dispatcher.UIThread.Post(CaptureEdit, DispatcherPriority.Background);
         };
 
         _chat = new ListBox
@@ -125,14 +123,13 @@ internal sealed class TeamWindow : Window
 
     public void Open(GroupOpenPayload p)
     {
-        _groupId = p.GroupId;
         Title = $"Espace d'équipe — {p.GroupName}";
         _header.Text = $"👥 {p.GroupName}";
         _members.Text = "Membres : " + string.Join(", ", p.Members);
-        _rev = p.Revision;
-        _synced = p.Text;
-        _inflight = 0;
-        SetLocal(p.Text);
+        _sync.Reset(p.GroupId, p.Text, p.Revision);
+        _applying = true;
+        try { _doc.Text = p.Text; _shown = p.Text; }
+        finally { _applying = false; }
         _chatLines.Clear();
         foreach (var c in p.History) _chatLines.Add(Format(c));
         _chat.ItemsSource = _chatLines.ToList();
@@ -143,79 +140,58 @@ internal sealed class TeamWindow : Window
     /// <summary>Le professeur s'est déconnecté : le document passe en lecture seule.</summary>
     public void Disconnected()
     {
-        _inflight = 0;
         _doc.IsReadOnly = true;
         _state.Text = "⚠ professeur déconnecté — lecture seule";
     }
 
+    /// <summary>Convertit la dernière saisie en modification et la met en attente d'envoi.</summary>
+    private void CaptureEdit()
+    {
+        _captureQueued = false;
+        string now = _doc.Text ?? "";
+        if (now == _shown) return;
+        _sync.LocalEdit(TextSplice.Diff(_shown, now, _doc.CaretIndex));
+        _shown = now;
+        _state.Text = "✏️ modification…";
+        _debounce.Stop();
+        _debounce.Start();
+    }
+
     private void FlushEdit()
     {
-        if (_inflight != 0 || _doc.IsReadOnly) return;
-        string local = _doc.Text ?? "";
-        if (local == _synced) { _state.Text = "✔ à jour"; return; }
-        _inflight = ++_seq;
-        _lastSent = local;
-        _state.Text = "⏳ envoi…";
-        _sendDoc(new GroupDocPayload { GroupId = _groupId, Text = local, Revision = _rev, Seq = _inflight });
+        if (_doc.IsReadOnly) return;
+        CaptureEdit();
+        var outgoing = _sync.TakeOutgoing();
+        if (outgoing != null) { _state.Text = "⏳ envoi…"; _sendDoc(outgoing); }
+        else if (!_sync.HasPending) _state.Text = "✔ à jour";
     }
 
     public void ReceiveDoc(GroupDocPayload p)
     {
-        if (p.GroupId != _groupId) return;
-        if (p.AckSeq == 0 && p.Revision <= _rev) return; // message en retard : déjà intégré
-        string local = _doc.Text ?? "";
-        string merged;
-
-        if (p.AckSeq != 0 && p.AckSeq == _inflight)
+        if (p.GroupId != _sync.GroupId) return;
+        CaptureEdit(); // la copie de synchronisation doit inclure la dernière frappe
+        var applied = _sync.Receive(p);
+        if (applied.Count > 0)
         {
-            // Notre modification est intégrée : on rejoue ce qui a été tapé depuis l'envoi.
-            merged = Rebase(local, _lastSent, p.Text);
-            _inflight = 0;
+            int caret = _doc.CaretIndex;
+            foreach (var op in applied) caret = op.MapCaret(caret);
+            _applying = true;
+            try
+            {
+                _doc.Text = _sync.Text;
+                _doc.CaretIndex = Math.Clamp(caret, 0, _sync.Text.Length);
+            }
+            finally { _applying = false; }
+            _shown = _sync.Text;
         }
-        else if (_inflight != 0)
-        {
-            // Une modification est en vol : l'accusé qui suit contiendra déjà ce texte.
-            return;
-        }
-        else
-        {
-            merged = Rebase(local, _synced, p.Text);
-        }
-
-        _rev = p.Revision;
-        _synced = p.Text;
-        SetLocal(merged);
-        if (merged != _synced) { _debounce.Stop(); _debounce.Start(); }
-        else _state.Text = "✔ à jour";
-    }
-
-    /// <summary>Réapplique sur <paramref name="incoming"/> les changements locaux faits depuis <paramref name="baseText"/>.</summary>
-    private static string Rebase(string local, string baseText, string incoming)
-    {
-        var mine = TextSplice.Diff(baseText, local);
-        if (mine.IsEmpty) return incoming;
-        var theirs = TextSplice.Diff(baseText, incoming);
-        return mine.TransformAgainst(theirs).ApplyTo(incoming);
-    }
-
-    private void SetLocal(string text)
-    {
-        string current = _doc.Text ?? "";
-        if (current == text) return;
-        int caret = _doc.CaretIndex;
-        var change = TextSplice.Diff(current, text);
-        _applying = true;
-        try
-        {
-            _doc.Text = text;
-            _doc.CaretIndex = Math.Clamp(change.MapCaret(caret), 0, text.Length);
-        }
-        finally { _applying = false; }
+        // Accusé reçu : on envoie tout de suite ce qui a été tapé entre-temps.
+        if (p.AckSeq != 0) FlushEdit();
+        else if (!_sync.HasPending) _state.Text = "✔ à jour";
     }
 
     public void ReceiveChat(GroupChatPayload c)
     {
-        if (c.GroupId != _groupId) return;
+        if (c.GroupId != _sync.GroupId) return;
         _chatLines.Add(Format(c));
         _chat.ItemsSource = _chatLines.ToList();
         _chat.ScrollIntoView(_chatLines.Count - 1);

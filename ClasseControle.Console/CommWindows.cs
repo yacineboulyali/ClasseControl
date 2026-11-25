@@ -242,7 +242,7 @@ internal sealed class SurveyWindow : Window
             row.Children.Add(new TextBlock { Text = _survey.Options[i], VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis });
             Grid.SetColumn(bar, 1);
             row.Children.Add(bar);
-            var count = new TextBlock { Text = $"{n} ({100 * n / total} %)", VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Right };
+            var count = new TextBlock { Text = $"{n} ({Math.Round(100.0 * n / total)} %)", VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Right };
             Grid.SetColumn(count, 2);
             row.Children.Add(count);
             ToolTip.SetTip(row, who.Count > 0 ? string.Join(", ", who) : "Personne");

@@ -20,6 +20,7 @@ internal sealed class AgentConnection : IDisposable
     public bool Selected { get; set; }
     public bool IsHandRaised { get; private set; }
     public bool IsBlanked { get; set; }
+    public bool IsInternetBlocked { get; set; }
     /// <summary>Étoiles (récompenses) obtenues pendant la séance.</summary>
     public int Stars { get; set; }
     /// <summary>Nom saisi par l'élève en début de séance (vide s'il ne s'est pas identifié).</summary>
@@ -137,6 +138,11 @@ internal sealed class AgentConnection : IDisposable
 
     public Task Lock(string message, byte[]? image = null) =>
         Send(MessageType.Lock, new LockPayload { Message = message, ImageJpeg = image });
+    public Task SetInternet(bool blocked)
+    {
+        IsInternetBlocked = blocked;
+        return Send(MessageType.InternetBlock, new InternetBlockPayload { Blocked = blocked });
+    }
     public Task Blank() => Send(MessageType.Lock, new LockPayload { Blank = true, Message = "" });
     public Task Chat(ChatPayload p) => Send(MessageType.Chat, p);
     public Task StartAudio(AudioStartPayload p) => Send(MessageType.AudioStart, p);

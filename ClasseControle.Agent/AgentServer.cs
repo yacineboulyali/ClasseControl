@@ -142,12 +142,15 @@ internal sealed class AgentServer
 
     public void Start()
     {
+        InternetBlocker.RecoverAtStartup();
         _ = Task.Run(() => DiscoveryLoop(_cts.Token));
         _ = Task.Run(() => ControlLoop(_cts.Token));
     }
 
     public void Stop()
     {
+        // On ne laisse jamais un poste sans Internet quand l'agent s'arrête.
+        try { if (InternetBlocker.IsBlocked) InternetBlocker.Unblock(); } catch { }
         _cts.Cancel();
         _restrictions.Dispose();
         _audio.Dispose();
@@ -423,6 +426,24 @@ internal sealed class AgentServer
                     case MessageType.StudentDesktop:
                         var sd = Wire.Read<StudentDesktopPayload>(env);
                         if (sd != null) DesktopAction(sd.Action);
+                        break;
+
+                    case MessageType.InternetBlock:
+                        var ib = Wire.Read<InternetBlockPayload>(env) ?? new InternetBlockPayload();
+                        try
+                        {
+                            if (ib.Blocked)
+                            {
+                                InternetBlocker.Block();
+                                _host.ShowMessage("Internet coupé", "Le professeur a coupé l'accès à Internet. Le réseau de la salle reste disponible.", 6);
+                            }
+                            else if (InternetBlocker.IsBlocked)
+                            {
+                                InternetBlocker.Unblock();
+                                _host.ShowMessage("Internet rétabli", "L'accès à Internet est de nouveau disponible.", 4);
+                            }
+                        }
+                        catch { }
                         break;
 
                     case MessageType.Survey:

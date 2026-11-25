@@ -68,6 +68,7 @@ internal static class Glyph
         Delete = "M4 7H20M9 7V4.5H15V7M6 7L7 20H17L18 7M10 11V16M14 11V16",
         Admin = "M12 3L19.5 6V11.5C19.5 16 16.5 19.5 12 21C7.5 19.5 4.5 16 4.5 11.5V6ZM9 12L11 14L15 10",
         Sort = "M4 6H13M4 12H10M4 18H7M17 5V19M14 16L17 19L20 16",
+        WebOff = "M19.4 15.6A9 9 0 0 1 8.4 20.3M5.2 18A9 9 0 0 1 15.6 3.6M3 12H8.5M15.5 12H21M12 3C13.4 4.4 14.4 6 15 7.8M9.2 15.6C9.6 17.6 10.6 19.4 12 21M8.5 12C8.5 10.6 8.7 9.3 9 8.1M3.5 3.5L20.5 20.5",
         Wifi = "M4.5 19.5H7V16H4.5ZM10.5 19.5H13V12H10.5ZM16.5 19.5H19V8H16.5Z";
 
     /// <summary>Icône vectorielle à la taille demandée. Sans couleur imposée, elle suit les styles (survol, actif).</summary>
