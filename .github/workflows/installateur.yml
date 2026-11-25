@@ -1,0 +1,60 @@
+# Construit l'installateur Windows (Inno Setup) et le joint à la version publiée.
+# Les exécutables autonomes sont aussi reconstruits et joints, pour que tous les
+# fichiers d'une version proviennent du même code.
+name: Installateur Windows
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  installateur:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Installer Inno Setup si absent
+        shell: pwsh
+        run: |
+          if (-not (Test-Path "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe")) {
+            choco install innosetup -y --no-progress
+          }
+
+      - name: Construire exécutables et installateur
+        shell: pwsh
+        run: |
+          powershell -ExecutionPolicy Bypass -File installer\build.ps1 *>&1 | Tee-Object -FilePath build-log.txt
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          if (-not (Get-ChildItem publish\installer\*.exe -ErrorAction SilentlyContinue)) { throw "Installateur non produit" }
+
+      - name: Joindre les fichiers à la version
+        if: github.event_name == 'release'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          Copy-Item (Get-ChildItem publish\installer\*.exe | Select-Object -First 1).FullName ClasseControle-Setup.exe
+          gh release upload "${{ github.event.release.tag_name }}" ClasseControle-Setup.exe --clobber
+
+      - name: Joindre le journal en cas d'échec
+        if: failure() && github.event_name == 'release'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if (-not (Test-Path build-log.txt)) { "Échec avant la construction." | Out-File build-log.txt }
+          gh release upload "${{ github.event.release.tag_name }}" build-log.txt --clobber
+
+      - uses: actions/upload-artifact@v4
+        if: github.event_name == 'workflow_dispatch'
+        with:
+          name: installateur
+          path: publish/installer/*.exe

@@ -13,6 +13,21 @@ Outil **original** de supervision de salle informatique (type « NetSupport Scho
 > responsabilité. Ce n'est pas une copie de NetSupport : c'est une
 > implémentation indépendante d'un protocole simple.
 
+## Téléchargement
+
+Dernière version : **[page des versions](https://github.com/yacineboulyali/ClasseControl/releases/latest)**
+
+| Fichier | À utiliser pour |
+|---|---|
+| [**ClasseControle-Setup.exe**](https://github.com/yacineboulyali/ClasseControl/releases/latest/download/ClasseControle-Setup.exe) | **Installateur (recommandé)** : au premier écran, choisir « Poste du professeur » ou « Poste élève » |
+| [ClasseControle-portable.zip](https://github.com/yacineboulyali/ClasseControl/releases/latest/download/ClasseControle-portable.zip) | Version sans installation : console + agent + guide + `agent.ini` |
+| [ClasseControle.Console.exe](https://github.com/yacineboulyali/ClasseControl/releases/latest/download/ClasseControle.Console.exe) | Console du professeur seule (un seul .exe) |
+| [ClasseControle.Agent.exe](https://github.com/yacineboulyali/ClasseControl/releases/latest/download/ClasseControle.Agent.exe) | Agent élève seul (un seul .exe) |
+
+Windows 10/11 64 bits, aucun prérequis (.NET est inclus). Les .exe ne sont pas
+signés : au premier lancement, SmartScreen peut demander « Informations
+complémentaires » → « Exécuter quand même ».
+
 ## Aperçu en images
 
 > Captures réalisées avec la vraie console et six postes élèves simulés.
