@@ -1,18 +1,18 @@
-# Construit l'installateur Windows (Inno Setup) et le joint à la version publiée.
-# Les exécutables autonomes sont aussi reconstruits et joints, pour que tous les
-# fichiers d'une version proviennent du même code.
-name: Installateur Windows
+# Publication d'une version : poussez une étiquette « vX.Y.Z » et ce workflow
+# construit sur Windows la console, l'agent, la version portable et l'installateur
+# (Inno Setup), puis crée la version GitHub avec tous les fichiers à télécharger.
+name: Publier une version
 
 on:
-  release:
-    types: [published]
+  push:
+    tags: ['v*']
   workflow_dispatch:
 
 permissions:
   contents: write
 
 jobs:
-  installateur:
+  publier:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -28,33 +28,40 @@ jobs:
             choco install innosetup -y --no-progress
           }
 
+      # Construit les deux .exe puis l'installateur. En cas d'échec de l'installateur,
+      # la version est quand même publiée avec les .exe et le journal de construction.
       - name: Construire exécutables et installateur
+        id: build
+        continue-on-error: true
         shell: pwsh
         run: |
           powershell -ExecutionPolicy Bypass -File installer\build.ps1 *>&1 | Tee-Object -FilePath build-log.txt
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           if (-not (Get-ChildItem publish\installer\*.exe -ErrorAction SilentlyContinue)) { throw "Installateur non produit" }
 
-      - name: Joindre les fichiers à la version
-        if: github.event_name == 'release'
+      - name: Préparer les fichiers
         shell: pwsh
-        env:
-          GH_TOKEN: ${{ github.token }}
         run: |
-          Copy-Item (Get-ChildItem publish\installer\*.exe | Select-Object -First 1).FullName ClasseControle-Setup.exe
-          gh release upload "${{ github.event.release.tag_name }}" ClasseControle-Setup.exe --clobber
+          New-Item -ItemType Directory -Force out, portable\ClasseControle | Out-Null
+          Copy-Item publish\console\ClasseControle.Console.exe, publish\agent\ClasseControle.Agent.exe out\
+          Copy-Item publish\console\ClasseControle.Console.exe, publish\agent\ClasseControle.Agent.exe, dist\GUIDE.txt, dist\agent.ini portable\ClasseControle\
+          Compress-Archive -Path portable\ClasseControle -DestinationPath out\ClasseControle-portable.zip
+          $setup = Get-ChildItem publish\installer\*.exe -ErrorAction SilentlyContinue | Select-Object -First 1
+          if ($setup) { Copy-Item $setup.FullName out\ClasseControle-Setup.exe }
+          else { Copy-Item build-log.txt out\build-log.txt -ErrorAction SilentlyContinue }
+          Get-ChildItem out
 
-      - name: Joindre le journal en cas d'échec
-        if: failure() && github.event_name == 'release'
+      - name: Créer la version GitHub
+        if: github.event_name == 'push'
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          if (-not (Test-Path build-log.txt)) { "Échec avant la construction." | Out-File build-log.txt }
-          gh release upload "${{ github.event.release.tag_name }}" build-log.txt --clobber
+          $tag = "${{ github.ref_name }}"
+          $files = Get-ChildItem out | ForEach-Object { $_.FullName }
+          gh release create $tag @files --title "Classe_controle $($tag.TrimStart('v'))" --notes-file .github/release-notes.md --latest
 
       - uses: actions/upload-artifact@v4
         if: github.event_name == 'workflow_dispatch'
         with:
-          name: installateur
-          path: publish/installer/*.exe
+          name: classecontrole
+          path: out/*
