@@ -1,11 +1,14 @@
-# Publication d'une version : poussez une étiquette « vX.Y.Z » et ce workflow
-# construit sur Windows la console, l'agent, la version portable et l'installateur
-# (Inno Setup), puis crée la version GitHub avec tous les fichiers à télécharger.
+# Publication automatique d'une version.
+# À chaque envoi sur « main », lit le numéro de version dans installer/ClasseControle.iss
+# (#define AppVersion). Si la version GitHub « vX.Y.Z » n'existe pas encore, construit
+# sur Windows la console, l'agent, la version portable et l'installateur (Inno Setup),
+# puis crée la version avec tous les fichiers à télécharger.
+# Pour publier une nouvelle version : changer AppVersion, puis envoyer sur main.
 name: Publier une version
 
 on:
   push:
-    tags: ['v*']
+    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -17,11 +20,26 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Lire la version et vérifier si elle est déjà publiée
+        id: version
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $v = (Select-String -Path installer\ClasseControle.iss -Pattern '#define AppVersion "([^"]+)"').Matches[0].Groups[1].Value
+          "tag=v$v" >> $env:GITHUB_OUTPUT
+          gh release view "v$v" --repo "${{ github.repository }}" *> $null
+          if ($LASTEXITCODE -eq 0) { "exists=true" >> $env:GITHUB_OUTPUT; Write-Host "v$v est déjà publiée : rien à faire." }
+          else { "exists=false" >> $env:GITHUB_OUTPUT; Write-Host "Publication de v$v." }
+          exit 0
+
       - uses: actions/setup-dotnet@v4
+        if: steps.version.outputs.exists != 'true'
         with:
           dotnet-version: '8.0.x'
 
       - name: Installer Inno Setup si absent
+        if: steps.version.outputs.exists != 'true'
         shell: pwsh
         run: |
           if (-not (Test-Path "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe")) {
@@ -31,6 +49,7 @@ jobs:
       # Construit les deux .exe puis l'installateur. En cas d'échec de l'installateur,
       # la version est quand même publiée avec les .exe et le journal de construction.
       - name: Construire exécutables et installateur
+        if: steps.version.outputs.exists != 'true'
         id: build
         continue-on-error: true
         shell: pwsh
@@ -39,6 +58,7 @@ jobs:
           if (-not (Get-ChildItem publish\installer\*.exe -ErrorAction SilentlyContinue)) { throw "Installateur non produit" }
 
       - name: Préparer les fichiers
+        if: steps.version.outputs.exists != 'true'
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force out, portable\ClasseControle | Out-Null
@@ -51,14 +71,14 @@ jobs:
           Get-ChildItem out
 
       - name: Créer la version GitHub
-        if: github.event_name == 'push'
+        if: github.event_name == 'push' && steps.version.outputs.exists != 'true'
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          $tag = "${{ github.ref_name }}"
+          $tag = "${{ steps.version.outputs.tag }}"
           $files = Get-ChildItem out | ForEach-Object { $_.FullName }
-          gh release create $tag @files --title "Classe_controle $($tag.TrimStart('v'))" --notes-file .github/release-notes.md --latest
+          gh release create $tag @files --target "${{ github.sha }}" --title "Classe_controle $($tag.TrimStart('v'))" --notes-file .github/release-notes.md --latest
 
       - uses: actions/upload-artifact@v4
         if: github.event_name == 'workflow_dispatch'
