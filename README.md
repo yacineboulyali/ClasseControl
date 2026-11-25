@@ -38,6 +38,7 @@ complémentaires » → « Exécuter quand même ».
 
 | Version | Téléchargements |
 |---|---|
+| **1.11.0** — annotation de l'écran, verrouillage Wi-Fi/Bluetooth | [Installateur](https://github.com/yacineboulyali/ClasseControl/releases/download/v1.11.0/ClasseControle-Setup.exe) · [ClasseControle.exe](https://github.com/yacineboulyali/ClasseControl/releases/download/v1.11.0/ClasseControle.exe) · [Portable (.zip)](https://github.com/yacineboulyali/ClasseControl/releases/download/v1.11.0/ClasseControle-portable.zip) · [Notes](https://github.com/yacineboulyali/ClasseControl/releases/tag/v1.11.0) |
 | **1.10.0** — mise à jour automatique depuis GitHub | [Installateur](https://github.com/yacineboulyali/ClasseControl/releases/download/v1.10.0/ClasseControle-Setup.exe) · [ClasseControle.exe](https://github.com/yacineboulyali/ClasseControl/releases/download/v1.10.0/ClasseControle.exe) · [Portable (.zip)](https://github.com/yacineboulyali/ClasseControl/releases/download/v1.10.0/ClasseControle-portable.zip) · [Notes](https://github.com/yacineboulyali/ClasseControl/releases/tag/v1.10.0) |
 | **1.9.1** — installateur : suppression des jeux Windows pour tous les utilisateurs | [Installateur](https://github.com/yacineboulyali/ClasseControl/releases/download/v1.9.1/ClasseControle-Setup.exe) · [ClasseControle.exe](https://github.com/yacineboulyali/ClasseControl/releases/download/v1.9.1/ClasseControle.exe) · [Portable (.zip)](https://github.com/yacineboulyali/ClasseControl/releases/download/v1.9.1/ClasseControle-portable.zip) · [Notes](https://github.com/yacineboulyali/ClasseControl/releases/tag/v1.9.1) |
 | **1.9.0** — restrictions par élève, jeux Windows bloqués ou désinstallés | [Installateur](https://github.com/yacineboulyali/ClasseControl/releases/download/v1.9.0/ClasseControle-Setup.exe) · [ClasseControle.exe](https://github.com/yacineboulyali/ClasseControl/releases/download/v1.9.0/ClasseControle.exe) · [Portable (.zip)](https://github.com/yacineboulyali/ClasseControl/releases/download/v1.9.0/ClasseControle-portable.zip) · [Notes](https://github.com/yacineboulyali/ClasseControl/releases/tag/v1.9.0) |
@@ -62,6 +63,9 @@ se compile avec `installer\build.ps1` (voir « Compilation »). Liste complète 
 
 ![Vue générale de la console](docs/images/console-vue-generale.png)
 *Vue générale : ruban de commandes en haut, barre latérale à gauche, une vignette par poste avec l'écran de l'élève en direct, son nom, ses étoiles et ses badges (« Aide », « Verrouillé », « Internet coupé »). Le zoom des vignettes est en bas à droite.*
+
+![Annotation de l'écran d'un élève](docs/images/console-annotation.png)
+*Annoter l'écran : le professeur dessine par-dessus l'écran de l'élève (stylo, surligneur, rectangle, cercle, flèche, couleurs) ; l'élève voit les mêmes traits sur son écran, en direct.*
 
 ![Applications ouvertes](docs/images/console-applications-ouvertes.png)
 *Applications ouvertes : le bouton de la barre latérale partage l'écran ; en bas, chaque poste avec l'élève, l'icône et le titre de l'application sur laquelle il travaille, et ses autres applications (clic droit sur une icône : fermer l'application). Les badges « Son coupé » indiquent les postes dont le son est coupé.*
@@ -197,6 +201,12 @@ ClasseControle.Console   Mode prof    (bibliothèque : Avalonia)
 - 🧩 **Applications ouvertes** : bouton de la barre latérale qui partage l'écran en deux ;
   en bas, pour chaque poste (PC), l'élève, l'**icône et le titre de l'application sur
   laquelle il travaille** et ses autres applications (clic droit : fermer)
+- ✏ **Annoter l'écran d'un élève** : stylo, surligneur, rectangle, cercle, flèche,
+  6 couleurs, 3 épaisseurs, annuler (Ctrl+Z), tout effacer ; l'élève voit les traits
+  en direct sur son propre écran
+- 📶 **Verrouiller le Wi-Fi et le Bluetooth** : l'élève ne peut plus les allumer, les
+  éteindre ni changer de réseau Wi-Fi (partage de connexion du téléphone…) — toute
+  modification est annulée en 2 secondes
 - ⌨ **Bloquer le clavier et la souris** des élèves sans masquer leur écran (bandeau
   d'information chez l'élève) ; le professeur peut toujours prendre le contrôle.
   Le verrouillage, l'écran noir et la diffusion plein écran bloquent aussi les

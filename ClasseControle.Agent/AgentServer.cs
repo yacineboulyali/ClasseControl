@@ -36,6 +36,8 @@ internal interface IAgentHost
     void ChatReceived(ChatPayload message);
     /// <summary>Blocage clavier/souris demandé par le professeur (écran visible).</summary>
     void SetInputLock(bool locked);
+    /// <summary>Annotations du professeur sur l'écran de l'élève.</summary>
+    void Annotate(AnnotationPayload annotation);
     void AnnouncementChanged(bool live, string speaker);
     void RewardChanged(RewardPayload reward);
     void ShowSurvey(SurveyPayload survey);
@@ -74,6 +76,8 @@ internal sealed class AgentServer
 
     private readonly AudioPlayer _audio = new();
     private Session? _inputLockOwner;
+    private Session? _annotationOwner;
+    private NetLockEnforcer? _netLock;
     private CancellationTokenSource? _inputLockTimeout;
     private Session? _surveyOwner;
     private Session? _audioOwner;
@@ -156,6 +160,7 @@ internal sealed class AgentServer
         // On ne laisse jamais un poste sans Internet quand l'agent s'arrête.
         try { if (InternetBlocker.IsBlocked) InternetBlocker.Unblock(); } catch { }
         try { if (AudioMuter.IsMuted) AudioMuter.SetMuted(false); } catch { }
+        try { _netLock?.Dispose(); } catch { }
         _cts.Cancel();
         _restrictions.Dispose();
         _audio.Dispose();
@@ -473,6 +478,28 @@ internal sealed class AgentServer
                         });
                         break;
 
+                    case MessageType.NetLock:
+                        var nl = Wire.Read<NetLockPayload>(env) ?? new NetLockPayload();
+                        if (OperatingSystem.IsWindowsVersionAtLeast(10, 0, 17763))
+                        {
+                            _netLock ??= new NetLockEnforcer(_host);
+                            if (nl.Locked != _netLock.IsLocked)
+                            {
+                                await _netLock.SetLockedAsync(nl.Locked);
+                                _host.ShowMessage(nl.Locked ? "Réseau verrouillé" : "Réseau libéré",
+                                    nl.Locked ? "Le professeur a verrouillé le Wi-Fi et le Bluetooth : ils ne peuvent plus être activés ni désactivés."
+                                              : "Vous pouvez de nouveau gérer le Wi-Fi et le Bluetooth.", 5);
+                            }
+                        }
+                        break;
+
+                    case MessageType.Annotate:
+                        var an = Wire.Read<AnnotationPayload>(env);
+                        if (an == null) break;
+                        _annotationOwner = an.Action == AnnotationAction.End ? null : session;
+                        _host.Annotate(an);
+                        break;
+
                     case MessageType.InputLock:
                         var il = Wire.Read<InputLockPayload>(env) ?? new InputLockPayload();
                         _inputLockTimeout?.Cancel();
@@ -529,6 +556,11 @@ internal sealed class AgentServer
             if (session != null) lock (_sessions) _sessions.Remove(session);
             // Si le professeur se déconnecte pendant une diffusion, on rend la main à l'élève.
             if (broadcasting) _host.HideBroadcast();
+            if (session != null && session == _annotationOwner)
+            {
+                _annotationOwner = null;
+                _host.Annotate(new AnnotationPayload { Action = AnnotationAction.End });
+            }
             if (session != null && session == _inputLockOwner)
             {
                 // Console perdue : on débloque l'élève au bout de 60 s si elle ne revient pas.

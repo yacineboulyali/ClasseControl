@@ -23,6 +23,7 @@ public sealed class App : Application, IAgentHost
     private TeamWindow? _team;
     private ChatWindow? _chat;
     private InputLockBanner? _inputBanner;
+    private AnnotationOverlay? _annotation;
     private SurveyPopup? _survey;
     private int _stars;
 
@@ -274,6 +275,25 @@ public sealed class App : Application, IAgentHost
             _inputBanner = null;
         }
         if (_tray != null) _tray.ToolTipText = locked ? "Classe_controle — clavier et souris bloqués" : "Classe_controle — Agent";
+    });
+
+    public void Annotate(AnnotationPayload annotation) => Dispatcher.UIThread.Post(() =>
+    {
+        if (annotation.Action == AnnotationAction.End)
+        {
+            try { _annotation?.Close(); } catch { }
+            _annotation = null;
+            InputBlocker.Set("annotation", false);
+            return;
+        }
+        if (_annotation == null)
+        {
+            _annotation = new AnnotationOverlay();
+            _annotation.Show();
+            // L'attention de l'élève sur l'explication : clavier et souris en pause pendant l'annotation.
+            InputBlocker.Set("annotation", true);
+        }
+        _annotation.Apply(annotation);
     });
 
     public void ChatReceived(ChatPayload message) => Dispatcher.UIThread.Post(() =>

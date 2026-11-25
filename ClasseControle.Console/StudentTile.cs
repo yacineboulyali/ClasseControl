@@ -23,6 +23,7 @@ internal sealed class StudentTile
     private readonly TextBlock _headerName = new() { Foreground = Brushes.White, FontSize = 11.5, FontWeight = FontWeight.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis };
     private readonly TextBlock _headerTime = new() { Foreground = new SolidColorBrush(Color.FromRgb(190, 205, 230)), FontSize = 11 };
     private readonly ContentControl _restrictIcon = new() { Margin = new Thickness(4, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center };
+    private readonly ContentControl _netLockIcon = new() { Margin = new Thickness(4, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center };
     private readonly TextBlock _stars = new() { Foreground = new SolidColorBrush(Color.FromRgb(255, 200, 40)), FontSize = 12 };
     private readonly TextBlock _lesson = new() { Foreground = new SolidColorBrush(Color.FromRgb(190, 205, 230)), FontSize = 11, TextTrimming = TextTrimming.CharacterEllipsis, HorizontalAlignment = HorizontalAlignment.Right };
     private readonly Image _thumb = new() { Stretch = Stretch.Uniform };
@@ -70,7 +71,7 @@ internal sealed class StudentTile
         _headerTime.Margin = new Thickness(8, 0, 6, 0);
         Grid.SetColumn(_headerTime, 1);
         header.Children.Add(_headerTime);
-        var headerMid = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center, Children = { _stars, _restrictIcon } };
+        var headerMid = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center, Children = { _stars, _restrictIcon, _netLockIcon } };
         Grid.SetColumn(headerMid, 2);
         header.Children.Add(headerMid);
         Grid.SetColumn(_lesson, 3);
@@ -332,6 +333,12 @@ internal sealed class StudentTile
             ToolTip.SetTip(_restrictIcon, "Restrictions actives\n" + string.Join("\n", parts));
         }
         _restrictIcon.IsVisible = rs.IsActive;
+        if (Conn.IsNetLocked && _netLockIcon.Content == null)
+        {
+            _netLockIcon.Content = Glyph.Make(Glyph.WifiLock, 13, new SolidColorBrush(Color.FromRgb(140, 200, 255)));
+            ToolTip.SetTip(_netLockIcon, "Wi-Fi et Bluetooth verrouillés");
+        }
+        _netLockIcon.IsVisible = Conn.IsConnected && Conn.IsNetLocked;
         _inputBadge.IsVisible = Conn.IsConnected && Conn.IsInputLocked;
         UpdateActiveApp();
         if (!Conn.IsConnected)

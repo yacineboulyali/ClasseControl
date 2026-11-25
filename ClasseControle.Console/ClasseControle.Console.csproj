@@ -22,4 +22,8 @@
   <ItemGroup>
     <AvaloniaResource Include="app-icon.png" />
   </ItemGroup>
+  <ItemGroup>
+    <!-- Rendu des annotations partagé entre la console et l'agent (même dessin des deux côtés). -->
+    <Compile Include="..\ClasseControle.Shared\AnnotationRenderer.cs" Link="Shared\AnnotationRenderer.cs" />
+  </ItemGroup>
 </Project>

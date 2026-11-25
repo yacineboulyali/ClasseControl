@@ -59,6 +59,8 @@ public enum MessageType
     InputLock = 78,       // bloquer / débloquer le clavier et la souris de l'élève (écran visible)
     RemoveGames = 79,     // désinstaller les jeux préinstallés de Windows (pour l'utilisateur du poste)
     UpdateNow = 84,       // lancer tout de suite la recherche de mise à jour (tâche planifiée)
+    NetLock = 85,         // verrouiller / libérer le Wi-Fi et le Bluetooth de l'élève
+    Annotate = 86,        // annotations du professeur dessinées par-dessus l'écran de l'élève
     Survey = 75,          // sondage rapide envoyé aux élèves
     SurveyClose = 76,     // fin du sondage
     SetRestrictions = 70, // liste d'applications / sites interdits
@@ -406,4 +408,35 @@ public sealed class InputLockPayload
 public sealed class AgentNoticePayload
 {
     public string Text { get; set; } = "";
+}
+
+public sealed class NetLockPayload
+{
+    public bool Locked { get; set; }
+}
+
+public enum AnnotationAction { Begin = 0, Stroke = 1, Undo = 2, Clear = 3, End = 4 }
+public enum AnnotationTool { Pen = 0, Highlighter = 1, Rectangle = 2, Ellipse = 3, Arrow = 4 }
+
+/// <summary>
+/// Un tracé d'annotation. Coordonnées normalisées 0..1 sur l'écran de l'élève
+/// (indépendantes de la résolution) ; épaisseur relative à la largeur de l'écran.
+/// Un tracé en cours est renvoyé plusieurs fois avec le même <see cref="Id"/> : il remplace le précédent.
+/// </summary>
+public sealed class AnnotationStroke
+{
+    public int Id { get; set; }
+    public AnnotationTool Tool { get; set; }
+    public string Color { get; set; } = "#E53935";
+    public double Width { get; set; } = 0.004;
+    /// <summary>Points à plat : x0, y0, x1, y1… (formes : 2 points, départ et arrivée).</summary>
+    public List<double> Points { get; set; } = new();
+}
+
+public sealed class AnnotationPayload
+{
+    public AnnotationAction Action { get; set; }
+    public AnnotationStroke? Stroke { get; set; }
+    /// <summary>Pour Undo : tracé à retirer.</summary>
+    public int StrokeId { get; set; }
 }

@@ -1,23 +1,21 @@
-## Classe_controle 1.10.0 — mise à jour automatique
+## Classe_controle 1.11.0
 
 Supervision de salle informatique pour Windows 10/11 (64 bits). Une seule application (`ClasseControle.exe`) : mode professeur ou élève. Aucun prérequis.
+Les postes installés avec la mise à jour automatique (1.10.0 et +) recevront cette version tout seuls dans l'heure ; sinon : Administrer › « Mettre à jour les postes ».
 
 ### Quel fichier télécharger ?
 
 | Fichier | Pour |
 |---|---|
-| **ClasseControle-Setup.exe** | **Installateur recommandé** (nécessaire pour la mise à jour automatique) |
-| ClasseControle.exe | L'application seule, sans installation (pas de mise à jour automatique : la console signale les nouvelles versions) |
+| **ClasseControle-Setup.exe** | **Installateur recommandé** (mise à jour automatique incluse) |
+| ClasseControle.exe | L'application seule, sans installation |
 | ClasseControle-portable.zip | L'application + le guide d'utilisation |
 
-### Nouveauté : mise à jour automatique
-- Option de l'installateur **« Mise à jour automatique depuis GitHub »** (cochée par défaut, professeur et élève) : une tâche planifiée Windows (compte SYSTEM) vérifie **toutes les heures et au démarrage** la dernière version publiée ici et l'installe seule.
-- L'**agent élève redémarre de lui-même** sur la nouvelle version (moins d'une minute) ; la **console propose de redémarrer** (pour ne pas couper un cours).
-- **Sécurité** : seule la version officielle de GitHub (HTTPS) est installée ; taille et numéro de version vérifiés ; rien n'est accepté depuis le réseau local.
-- Console : **version de chaque poste** (⟳ orange si plus ancienne), boutons **« Mettre à jour les postes »** (tout de suite) et **« Vérifier les mises à jour »** (onglet Administrer).
-- Journal : `%ProgramData%\Classe_controle\update.log`. Internet (GitHub) doit être accessible.
+### Nouveautés de la 1.11.0
+- ✏ **Annoter l'écran d'un élève** (ruban « Annoter l'écran » ou clic droit › Annoter) : stylo, surligneur, rectangle, cercle, flèche, 6 couleurs, 3 épaisseurs, annuler (Ctrl+Z), tout effacer. L'élève voit les traits **en direct sur son écran** ; son clavier et sa souris sont en pause pendant l'annotation.
+- 📶 **Verrouiller le Wi-Fi et le Bluetooth** (groupe Accès web, barre latérale, clic droit) : l'élève ne peut plus les **allumer, les éteindre**, passer en mode avion ni **changer de réseau Wi-Fi** (partage de connexion du téléphone…) — tout est remis en place en 2 secondes, avec un message. Sans droits administrateur.
 
-### Important
-Les postes en 1.9.1 ou avant n'ont pas encore la mise à jour automatique : **installez une fois cette version 1.10.0** avec l'installateur (en silencieux : `/VERYSILENT /ROLE=eleve /ROOM=CLASSE`). Les versions suivantes s'installeront ensuite toutes seules.
-
-Déploiement silencieux sans mise à jour automatique : ajouter `/MERGETASKS="!majauto"`.
+### Remarques
+- Windows 10 version 1809 ou plus récente pour le verrouillage Wi-Fi/Bluetooth.
+- Une radio coupée par un interrupteur matériel (touche du portable) ne peut pas être rallumée par logiciel.
+- Les .exe ne sont pas signés : SmartScreen peut afficher un avertissement.

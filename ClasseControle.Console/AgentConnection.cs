@@ -23,6 +23,7 @@ internal sealed class AgentConnection : IDisposable
     public bool IsInternetBlocked { get; set; }
     public bool IsMuted { get; set; }
     public bool IsInputLocked { get; set; }
+    public bool IsNetLocked { get; set; }
     /// <summary>Restrictions appliquées à ce poste (applications et sites interdits).</summary>
     public RestrictionsPayload Restrictions { get; private set; } = new();
     public event Action<AgentConnection, string>? Notice;
@@ -166,6 +167,14 @@ internal sealed class AgentConnection : IDisposable
 
     public Task Lock(string message, byte[]? image = null) =>
         Send(MessageType.Lock, new LockPayload { Message = message, ImageJpeg = image });
+    public Task SetNetLock(bool locked)
+    {
+        IsNetLocked = locked;
+        return Send(MessageType.NetLock, new NetLockPayload { Locked = locked });
+    }
+
+    public Task Annotate(AnnotationPayload p) => Send(MessageType.Annotate, p);
+
     public Task SetInputLock(bool locked)
     {
         IsInputLocked = locked;

@@ -40,8 +40,8 @@ internal sealed class MainWindow : Window
 
     private Button _scanBtn = null!, _lessonBtn = null!, _showBtn = null!, _announceBtn = null!,
                    _webBtn = null!, _helpBtn = null!, _liveBtn = null!, _sideAnnounce = null!,
-                   _netBtn = null!, _sideNet = null!, _muteBtn = null!, _sideApps = null!, _inputBtn = null!, _sideInput = null!;
-    private bool _muteForClass, _inputLockForClass;
+                   _netBtn = null!, _sideNet = null!, _muteBtn = null!, _sideApps = null!, _inputBtn = null!, _sideInput = null!, _netLockBtn = null!, _sideNetLock = null!;
+    private bool _muteForClass, _inputLockForClass, _netLockForClass;
     private AppsPanel _appsPanel = null!;
     private Grid _split = null!;
     private bool _appsVisible;
@@ -261,6 +261,7 @@ internal sealed class MainWindow : Window
         var student = Ribbon.Group("Élève",
             Ribbon.Big(Glyph.View, "Voir l'élève", () => ViewTargets(Targets())),
             Ribbon.Big(Glyph.Control, "Contrôler", () => ViewTargets(Targets(), control: true)),
+            Ribbon.Big(Glyph.Pen, "Annoter l'écran", () => ViewTargets(Targets(), annotate: true)),
             Ribbon.Big(Glyph.Folder, "Transfert de fichiers", () => Run(() => SendFileAsync(Targets()))),
             Ribbon.Big(Glyph.Lock, "Verrouiller", () => Run(() => LockAsync(Targets()))),
             Ribbon.Big(Glyph.Unlock, "Déverrouiller", () => Run(() => UnlockAsync(Targets()))),
@@ -281,7 +282,8 @@ internal sealed class MainWindow : Window
             ("Applications et sites interdits…", () => Run(() => EditRestrictionsAsync())),
             ("Ouvrir un site sur les postes…", () => Run(OpenWebsiteAsync))));
         _netBtn = Ribbon.Big(Glyph.WebOff, "Couper Internet", () => Run(() => ToggleInternetAsync(Targets())));
-        var web = Ribbon.Group("Accès web", _webBtn, Ribbon.Big(Glyph.Blocked, "Restrictions…", () => Run(() => EditRestrictionsAsync())), _netBtn);
+        _netLockBtn = Ribbon.Big(Glyph.WifiLock, "Verrouiller Wi-Fi/Bluetooth", () => Run(() => ToggleNetLockAsync(Targets())));
+        var web = Ribbon.Group("Accès web", _webBtn, Ribbon.Big(Glyph.Blocked, "Restrictions…", () => Run(() => EditRestrictionsAsync())), _netBtn, _netLockBtn);
         _muteBtn = Ribbon.Big(Glyph.SoundOff, "Couper le son", () => Run(() => ToggleMuteAsync(Targets())));
         var sound = Ribbon.Group("Son", _muteBtn);
 
@@ -422,6 +424,7 @@ internal sealed class MainWindow : Window
                 (_sideNet = Item(Glyph.WebOff, "Couper / rétablir Internet", () => Run(() => ToggleInternetAsync(Targets())))),
                 Item(Glyph.SoundOff, "Couper / rétablir le son", () => Run(() => ToggleMuteAsync(Targets()))),
                 (_sideInput = Item(Glyph.InputLock, "Bloquer / débloquer clavier et souris", () => Run(() => ToggleInputLockAsync(Targets())))),
+                (_sideNetLock = Item(Glyph.WifiLock, "Verrouiller / libérer le Wi-Fi et le Bluetooth", () => Run(() => ToggleNetLockAsync(Targets())))),
                 (_sideApps = Item(Glyph.Apps, "Applications ouvertes sur les postes (partage l'écran)", () => Run(() => ShowAppsAsync(!_appsVisible)))),
                 Item(Glyph.Launch, "Ouvrir un site sur les postes", () => Run(OpenWebsiteAsync)),
                 Item(Glyph.List, "Liste de présence", OpenAttendance),
@@ -597,6 +600,9 @@ internal sealed class MainWindow : Window
                 tile.Conn.IsMuted
                     ? Cmd(Glyph.Sound, "Rétablir le son", () => Run(() => SetMuteAsync(targets, false)), false)
                     : Cmd(Glyph.SoundOff, "Couper le son", () => Run(() => SetMuteAsync(targets, true)), false),
+                tile.Conn.IsNetLocked
+                    ? Cmd(Glyph.Wifi, "Libérer Wi-Fi/Bluetooth", () => Run(() => SetNetLockAsync(targets, false)), false)
+                    : Cmd(Glyph.WifiLock, "Verrouiller Wi-Fi/Bluetooth", () => Run(() => SetNetLockAsync(targets, true)), false),
             },
         };
         var main = new StackPanel
@@ -606,6 +612,7 @@ internal sealed class MainWindow : Window
             {
                 Cmd(Glyph.View, "Voir l'élève", () => ViewTargets(targets)),
                 Cmd(Glyph.Control, "Contrôler", () => ViewTargets(targets, control: true)),
+                Cmd(Glyph.Pen, "Annoter", () => ViewTargets(targets, annotate: true)),
                 Cmd(Glyph.Folder, "Transfert de fichiers", () => Run(() => SendFileAsync(targets))),
                 Cmd(Glyph.Chat, "Discussion", () => OpenChat(targets)),
                 Cmd(Glyph.Message, "Message", () => Run(() => SendMessageAsync(targets))),
@@ -652,7 +659,7 @@ internal sealed class MainWindow : Window
         string who = targets.Count == 1 ? $"{targets[0].DisplayName} — {targets[0].Info.MachineName}" : $"{targets.Count} postes sélectionnés";
         flyout.Content = new StackPanel
         {
-            Width = 700,
+            Width = 900,
             Children =
             {
                 new TextBlock { Text = who, FontWeight = FontWeight.SemiBold, Margin = new Thickness(6, 0, 0, 4) },
@@ -781,6 +788,8 @@ internal sealed class MainWindow : Window
             try { await c.SetMute(true); } catch { }
         if (_inputLockForClass || c.IsInputLocked)
             try { await c.SetInputLock(true); } catch { }
+        if (_netLockForClass || c.IsNetLocked)
+            try { await c.SetNetLock(true); } catch { }
         if (_appsVisible)
             try { await c.WatchApps(true); } catch { }
         if (_broadcaster.IsRunning)
@@ -926,6 +935,29 @@ internal sealed class MainWindow : Window
         SetStatus(show ? "Applications ouvertes : liste mise à jour toutes les 2 secondes." : "Panneau des applications masqué.");
     }
 
+    // ---------- Wi-Fi / Bluetooth ----------
+    private Task ToggleNetLockAsync(IReadOnlyList<AgentConnection> targets)
+    {
+        bool all = targets.Count > 0 && targets.All(t => t.IsNetLocked);
+        return SetNetLockAsync(targets, !all);
+    }
+
+    /// <summary>Empêche les élèves d'allumer / éteindre le Wi-Fi et le Bluetooth ou de changer de réseau Wi-Fi.</summary>
+    private async Task SetNetLockAsync(IReadOnlyList<AgentConnection> targets, bool locked)
+    {
+        if (targets.Count == 0) { SetStatus("Aucun poste connecté."); return; }
+        foreach (var c in targets) { try { await c.SetNetLock(locked); } catch { } }
+        if (IsWholeClass(targets)) _netLockForClass = locked;
+        Log(locked ? "Wi-Fi/Bluetooth verrouillés" : "Wi-Fi/Bluetooth libérés", targets);
+        RefreshTiles(targets);
+        int n = _tiles.Values.Count(t => t.Conn.IsConnected && t.Conn.IsNetLocked);
+        SetBigLabel(_netLockBtn, n > 0 ? $"Libérer Wi-Fi/Bluetooth ({n})" : "Verrouiller Wi-Fi/Bluetooth");
+        SetState(_netLockBtn, n > 0 ? "live" : null);
+        SetState(_sideNetLock, n > 0 ? "live" : null);
+        SetStatus(locked ? $"Wi-Fi et Bluetooth verrouillés sur {targets.Count} poste(s) : toute modification est annulée en 2 secondes."
+                         : $"Wi-Fi et Bluetooth libérés sur {targets.Count} poste(s).");
+    }
+
     // ---------- Clavier / souris ----------
     private Task ToggleInputLockAsync(IReadOnlyList<AgentConnection> targets)
     {
@@ -1005,19 +1037,21 @@ internal sealed class MainWindow : Window
         RefreshTiles(targets);
     }
 
-    private void ViewTargets(IReadOnlyList<AgentConnection> targets, bool control = false)
+    private void ViewTargets(IReadOnlyList<AgentConnection> targets, bool control = false, bool annotate = false)
     {
-        var list = targets.Where(t => t.IsConnected).Take(control ? 1 : 4).ToList();
+        bool single = control || annotate;
+        var list = targets.Where(t => t.IsConnected).Take(single ? 1 : 4).ToList();
         if (list.Count == 0) { SetStatus("Sélectionnez un poste connecté (clic sur une vignette)."); return; }
-        if (control && targets.Count(t => t.IsConnected) > 1 && !targets.Any(t => _tiles.Values.Any(x => x.Conn == t && x.IsSelected)))
+        if (single && targets.Count(t => t.IsConnected) > 1 && !targets.Any(t => _tiles.Values.Any(x => x.Conn == t && x.IsSelected)))
         {
-            SetStatus("Sélectionnez le poste à contrôler (clic sur sa vignette), puis « Contrôler ».");
+            SetStatus(annotate ? "Sélectionnez le poste à annoter (clic sur sa vignette), puis « Annoter l'écran »."
+                               : "Sélectionnez le poste à contrôler (clic sur sa vignette), puis « Contrôler ».");
             return;
         }
         foreach (var c in list)
         {
-            new RemoteViewWindow(c, control).Show();
-            ActionLog.Add(control ? "Prise de contrôle" : "Vue de l'écran", c.Info.MachineName);
+            new RemoteViewWindow(c, control, annotate).Show();
+            if (!annotate) ActionLog.Add(control ? "Prise de contrôle" : "Vue de l'écran", c.Info.MachineName);
         }
     }
 
