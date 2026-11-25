@@ -38,6 +38,7 @@ complémentaires » → « Exécuter quand même ».
 
 | Version | Téléchargements |
 |---|---|
+| **1.8.0** — blocage du clavier et de la souris | [Installateur](https://github.com/yacineboulyali/ClasseControl/releases/download/v1.8.0/ClasseControle-Setup.exe) · [ClasseControle.exe](https://github.com/yacineboulyali/ClasseControl/releases/download/v1.8.0/ClasseControle.exe) · [Portable (.zip)](https://github.com/yacineboulyali/ClasseControl/releases/download/v1.8.0/ClasseControle-portable.zip) · [Notes](https://github.com/yacineboulyali/ClasseControl/releases/tag/v1.8.0) |
 | **1.7.0** — applications ouvertes, son coupé, glisser-déposer, contrôle direct | [Installateur](https://github.com/yacineboulyali/ClasseControl/releases/download/v1.7.0/ClasseControle-Setup.exe) · [ClasseControle.exe](https://github.com/yacineboulyali/ClasseControl/releases/download/v1.7.0/ClasseControle.exe) · [Portable (.zip)](https://github.com/yacineboulyali/ClasseControl/releases/download/v1.7.0/ClasseControle-portable.zip) · [Notes](https://github.com/yacineboulyali/ClasseControl/releases/tag/v1.7.0) |
 | **1.6.0** — application unique (prof + élève) | [Installateur](https://github.com/yacineboulyali/ClasseControl/releases/download/v1.6.0/ClasseControle-Setup.exe) · [ClasseControle.exe](https://github.com/yacineboulyali/ClasseControl/releases/download/v1.6.0/ClasseControle.exe) · [Portable (.zip)](https://github.com/yacineboulyali/ClasseControl/releases/download/v1.6.0/ClasseControle-portable.zip) · [Notes](https://github.com/yacineboulyali/ClasseControl/releases/tag/v1.6.0) |
 | **1.5.0** — couper Internet, documentation illustrée | [Installateur](https://github.com/yacineboulyali/ClasseControl/releases/download/v1.5.0/ClasseControle-Setup.exe) · [Console](https://github.com/yacineboulyali/ClasseControl/releases/download/v1.5.0/ClasseControle.Console.exe) · [Agent](https://github.com/yacineboulyali/ClasseControl/releases/download/v1.5.0/ClasseControle.Agent.exe) · [Portable (.zip)](https://github.com/yacineboulyali/ClasseControl/releases/download/v1.5.0/ClasseControle-portable.zip) · [Notes](https://github.com/yacineboulyali/ClasseControl/releases/tag/v1.5.0) |
@@ -188,6 +189,11 @@ ClasseControle.Console   Mode prof    (bibliothèque : Avalonia)
 - 🧩 **Applications ouvertes** : bouton de la barre latérale qui partage l'écran en deux ;
   en bas, pour chaque poste (PC), l'élève, l'**icône et le titre de l'application sur
   laquelle il travaille** et ses autres applications (clic droit : fermer)
+- ⌨ **Bloquer le clavier et la souris** des élèves sans masquer leur écran (bandeau
+  d'information chez l'élève) ; le professeur peut toujours prendre le contrôle.
+  Le verrouillage, l'écran noir et la diffusion plein écran bloquent aussi les
+  entrées physiques (Alt+Tab, touche Windows…). Déblocage automatique après 60 s
+  si la console se déconnecte
 - 🔇 **Couper le son** des applications des élèves (les annonces du professeur restent audibles)
 - ↔ **Glisser-déposer les vignettes** pour reproduire le plan de la salle (ordre mémorisé)
 - 🌙 **Écran noir** (attirer l'attention), distinct du verrouillage

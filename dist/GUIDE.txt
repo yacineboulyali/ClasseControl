@@ -1,5 +1,5 @@
 ╔══════════════════════════════════════════════════════════════════╗
-║   CLASSE_CONTROLE — Supervision de salle informatique (v1.7)       ║
+║   CLASSE_CONTROLE — Supervision de salle informatique (v1.8)       ║
 ║   Équivalent libre et original de type "NetSupport School"         ║
 ╚══════════════════════════════════════════════════════════════════╝
 
@@ -110,6 +110,10 @@ switch / même sous-réseau).
      ⚙ Paramètres → texte et image de l'écran de verrouillage.
      🖱 Contrôler → sélectionnez un poste puis « Contrôler » (ou clic droit
         sur la vignette) : vous pilotez sa souris et son clavier.
+     ⌨ Bloquer clavier/souris → les élèves voient leur écran mais ne
+        peuvent plus taper ni cliquer (un bandeau les prévient). Vous
+        gardez la prise de contrôle à distance. Recliquez « Débloquer ».
+        Si la console se ferme, les postes se débloquent après 60 s.
      🔇 Couper le son (groupe Son) → coupe le son des applications des
         élèves ; vos annonces restent audibles. Recliquez pour rétablir.
      🧩 Applications ouvertes (barre de gauche) → l'écran se partage en
@@ -178,4 +182,4 @@ switch / même sous-réseau).
   • Outil destiné à un usage pédagogique encadré, sur des postes dont
     vous avez la responsabilité. Informez les utilisateurs.
 
-Bon cours !  —  Classe_controle v1.7
+Bon cours !  —  Classe_controle v1.8

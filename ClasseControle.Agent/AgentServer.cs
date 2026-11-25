@@ -34,6 +34,8 @@ internal interface IAgentHost
 
     // --- Communication / retour ---
     void ChatReceived(ChatPayload message);
+    /// <summary>Blocage clavier/souris demandé par le professeur (écran visible).</summary>
+    void SetInputLock(bool locked);
     void AnnouncementChanged(bool live, string speaker);
     void RewardChanged(RewardPayload reward);
     void ShowSurvey(SurveyPayload survey);
@@ -71,6 +73,8 @@ internal sealed class AgentServer
     private Session? _groupOwner;
 
     private readonly AudioPlayer _audio = new();
+    private Session? _inputLockOwner;
+    private CancellationTokenSource? _inputLockTimeout;
     private Session? _surveyOwner;
     private Session? _audioOwner;
 
@@ -448,6 +452,13 @@ internal sealed class AgentServer
                         catch { }
                         break;
 
+                    case MessageType.InputLock:
+                        var il = Wire.Read<InputLockPayload>(env) ?? new InputLockPayload();
+                        _inputLockTimeout?.Cancel();
+                        _inputLockOwner = il.Locked ? session : null;
+                        _host.SetInputLock(il.Locked);
+                        break;
+
                     case MessageType.SetMute:
                         var mu = Wire.Read<MutePayload>(env) ?? new MutePayload();
                         if (mu.Muted != AudioMuter.IsMuted)
@@ -497,6 +508,17 @@ internal sealed class AgentServer
             if (session != null) lock (_sessions) _sessions.Remove(session);
             // Si le professeur se déconnecte pendant une diffusion, on rend la main à l'élève.
             if (broadcasting) _host.HideBroadcast();
+            if (session != null && session == _inputLockOwner)
+            {
+                // Console perdue : on débloque l'élève au bout de 60 s si elle ne revient pas.
+                _inputLockOwner = null;
+                var cts = new CancellationTokenSource();
+                _inputLockTimeout = cts;
+                _ = Task.Delay(TimeSpan.FromSeconds(60), cts.Token).ContinueWith(t =>
+                {
+                    if (!t.IsCanceled && _inputLockOwner == null) _host.SetInputLock(false);
+                }, TaskScheduler.Default);
+            }
             if (session != null && session == _audioOwner)
             {
                 _audio.Stop();

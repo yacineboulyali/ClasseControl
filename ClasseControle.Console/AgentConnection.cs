@@ -22,6 +22,7 @@ internal sealed class AgentConnection : IDisposable
     public bool IsBlanked { get; set; }
     public bool IsInternetBlocked { get; set; }
     public bool IsMuted { get; set; }
+    public bool IsInputLocked { get; set; }
 
     /// <summary>Applications ouvertes sur le poste (dernière liste reçue), l'active en premier.</summary>
     public IReadOnlyList<AppInfo> Apps { get; private set; } = Array.Empty<AppInfo>();
@@ -157,6 +158,12 @@ internal sealed class AgentConnection : IDisposable
 
     public Task Lock(string message, byte[]? image = null) =>
         Send(MessageType.Lock, new LockPayload { Message = message, ImageJpeg = image });
+    public Task SetInputLock(bool locked)
+    {
+        IsInputLocked = locked;
+        return Send(MessageType.InputLock, new InputLockPayload { Locked = locked });
+    }
+
     public Task SetMute(bool muted)
     {
         IsMuted = muted;

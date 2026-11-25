@@ -40,8 +40,8 @@ internal sealed class MainWindow : Window
 
     private Button _scanBtn = null!, _lessonBtn = null!, _showBtn = null!, _announceBtn = null!,
                    _webBtn = null!, _helpBtn = null!, _liveBtn = null!, _sideAnnounce = null!,
-                   _netBtn = null!, _sideNet = null!, _muteBtn = null!, _sideApps = null!;
-    private bool _muteForClass;
+                   _netBtn = null!, _sideNet = null!, _muteBtn = null!, _sideApps = null!, _inputBtn = null!, _sideInput = null!;
+    private bool _muteForClass, _inputLockForClass;
     private AppsPanel _appsPanel = null!;
     private Grid _split = null!;
     private bool _appsVisible;
@@ -253,6 +253,7 @@ internal sealed class MainWindow : Window
             Ribbon.Big(Glyph.Lock, "Verrouiller", () => Run(() => LockAsync(Targets()))),
             Ribbon.Big(Glyph.Unlock, "Déverrouiller", () => Run(() => UnlockAsync(Targets()))),
             Ribbon.Big(Glyph.Blank, "Écran noir", () => Run(() => BlankAsync(Targets()))),
+            (_inputBtn = Ribbon.Big(Glyph.InputLock, "Bloquer clavier/souris", () => Run(() => ToggleInputLockAsync(Targets())))),
             _showBtn,
             Ribbon.Big(Glyph.Launch, "Lancement rapide", menu: QuickLaunchMenu(() => Targets())),
             Ribbon.Big(Glyph.Desktop, "Bureau élève", menu: Ribbon.Menu(
@@ -404,6 +405,7 @@ internal sealed class MainWindow : Window
                 Item(Glyph.Globe, "Accès web et restrictions", () => Run(EditRestrictionsAsync)),
                 (_sideNet = Item(Glyph.WebOff, "Couper / rétablir Internet", () => Run(() => ToggleInternetAsync(Targets())))),
                 Item(Glyph.SoundOff, "Couper / rétablir le son", () => Run(() => ToggleMuteAsync(Targets()))),
+                (_sideInput = Item(Glyph.InputLock, "Bloquer / débloquer clavier et souris", () => Run(() => ToggleInputLockAsync(Targets())))),
                 (_sideApps = Item(Glyph.Apps, "Applications ouvertes sur les postes (partage l'écran)", () => Run(() => ShowAppsAsync(!_appsVisible)))),
                 Item(Glyph.Launch, "Ouvrir un site sur les postes", () => Run(OpenWebsiteAsync)),
                 Item(Glyph.List, "Liste de présence", OpenAttendance),
@@ -570,6 +572,9 @@ internal sealed class MainWindow : Window
                 locked ? Cmd(Glyph.Unlock, "Déverrouiller", () => Run(() => UnlockAsync(targets)), false)
                        : Cmd(Glyph.Lock, "Verrouiller", () => Run(() => LockAsync(targets)), false),
                 Cmd(Glyph.Blank, "Écran noir", () => Run(() => BlankAsync(targets)), false),
+                tile.Conn.IsInputLocked
+                    ? Cmd(Glyph.InputUnlock, "Débloquer clavier/souris", () => Run(() => SetInputLockAsync(targets, false)), false)
+                    : Cmd(Glyph.InputLock, "Bloquer clavier/souris", () => Run(() => SetInputLockAsync(targets, true)), false),
                 tile.Conn.IsInternetBlocked
                     ? Cmd(Glyph.Globe, "Rétablir Internet", () => Run(() => SetInternetAsync(targets, false)), false)
                     : Cmd(Glyph.WebOff, "Couper Internet", () => Run(() => SetInternetAsync(targets, true)), false),
@@ -630,7 +635,7 @@ internal sealed class MainWindow : Window
         string who = targets.Count == 1 ? $"{targets[0].DisplayName} — {targets[0].Info.MachineName}" : $"{targets.Count} postes sélectionnés";
         flyout.Content = new StackPanel
         {
-            Width = 560,
+            Width = 700,
             Children =
             {
                 new TextBlock { Text = who, FontWeight = FontWeight.SemiBold, Margin = new Thickness(6, 0, 0, 4) },
@@ -748,6 +753,8 @@ internal sealed class MainWindow : Window
             try { await c.SetInternet(true); } catch { }
         if (_muteForClass || c.IsMuted)
             try { await c.SetMute(true); } catch { }
+        if (_inputLockForClass || c.IsInputLocked)
+            try { await c.SetInputLock(true); } catch { }
         if (_appsVisible)
             try { await c.WatchApps(true); } catch { }
         if (_broadcaster.IsRunning)
@@ -891,6 +898,29 @@ internal sealed class MainWindow : Window
         }
         _appsPanel.Invalidate();
         SetStatus(show ? "Applications ouvertes : liste mise à jour toutes les 2 secondes." : "Panneau des applications masqué.");
+    }
+
+    // ---------- Clavier / souris ----------
+    private Task ToggleInputLockAsync(IReadOnlyList<AgentConnection> targets)
+    {
+        bool allLocked = targets.Count > 0 && targets.All(t => t.IsInputLocked);
+        return SetInputLockAsync(targets, !allLocked);
+    }
+
+    /// <summary>Bloque le clavier et la souris des élèves : ils voient leur écran mais ne peuvent rien faire.</summary>
+    private async Task SetInputLockAsync(IReadOnlyList<AgentConnection> targets, bool locked)
+    {
+        if (targets.Count == 0) { SetStatus("Aucun poste connecté."); return; }
+        foreach (var c in targets) { try { await c.SetInputLock(locked); } catch { } }
+        if (IsWholeClass(targets)) _inputLockForClass = locked;
+        Log(locked ? "Clavier/souris bloqués" : "Clavier/souris débloqués", targets);
+        RefreshTiles(targets);
+        int n = _tiles.Values.Count(t => t.Conn.IsConnected && t.Conn.IsInputLocked);
+        SetBigLabel(_inputBtn, n > 0 ? $"Débloquer ({n})" : "Bloquer clavier/souris");
+        SetState(_inputBtn, n > 0 ? "live" : null);
+        SetState(_sideInput, n > 0 ? "live" : null);
+        SetStatus(locked ? $"Clavier et souris bloqués sur {targets.Count} poste(s) — vous pouvez toujours les contrôler à distance."
+                         : $"Clavier et souris débloqués sur {targets.Count} poste(s).");
     }
 
     // ---------- Son ----------

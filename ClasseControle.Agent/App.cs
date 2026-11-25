@@ -22,6 +22,7 @@ public sealed class App : Application, IAgentHost
     private LoginOverlay? _login;
     private TeamWindow? _team;
     private ChatWindow? _chat;
+    private InputLockBanner? _inputBanner;
     private SurveyPopup? _survey;
     private int _stars;
 
@@ -95,6 +96,7 @@ public sealed class App : Application, IAgentHost
         {
             if (dlg.Success && ApplicationLifetime is IClassicDesktopStyleApplicationLifetime d)
             {
+                InputBlocker.ReleaseAll();
                 _server?.Stop();
                 _tray!.IsVisible = false;
                 d.Shutdown();
@@ -123,6 +125,7 @@ public sealed class App : Application, IAgentHost
             _lock.Show();
         }
         else _lock.Update(message, image, blank);
+        InputBlocker.Set("verrouillage", true); // Alt+Tab, touche Windows… n'échappent plus au verrouillage
         RaiseTop();
     });
 
@@ -130,6 +133,7 @@ public sealed class App : Application, IAgentHost
     {
         try { _lock?.Close(); } catch { }
         _lock = null;
+        InputBlocker.Set("verrouillage", false);
         RaiseTop();
     });
 
@@ -152,6 +156,7 @@ public sealed class App : Application, IAgentHost
             _broadcast.Show();
         }
         else _broadcast.SetMode(title, exclusive);
+        InputBlocker.Set("diffusion", exclusive);
         RaiseTop();
     });
 
@@ -161,6 +166,7 @@ public sealed class App : Application, IAgentHost
     {
         try { _broadcast?.ForceClose(); } catch { }
         _broadcast = null;
+        InputBlocker.Set("diffusion", false);
     });
 
     public void SetHandRaised(bool raised) => Dispatcher.UIThread.Post(() =>
@@ -228,6 +234,22 @@ public sealed class App : Application, IAgentHost
         _chat.Show();
         _chat.Activate();
     }
+
+    public void SetInputLock(bool locked) => Dispatcher.UIThread.Post(() =>
+    {
+        InputBlocker.Set("prof", locked);
+        if (locked)
+        {
+            _inputBanner ??= new InputLockBanner();
+            _inputBanner.Show();
+        }
+        else
+        {
+            try { _inputBanner?.Close(); } catch { }
+            _inputBanner = null;
+        }
+        if (_tray != null) _tray.ToolTipText = locked ? "Classe_controle — clavier et souris bloqués" : "Classe_controle — Agent";
+    });
 
     public void ChatReceived(ChatPayload message) => Dispatcher.UIThread.Post(() =>
     {

@@ -23,7 +23,7 @@ public static class Net
 
 public static class AgentInfo
 {
-    public const string Version = "1.7.0";
+    public const string Version = "1.8.0";
 }
 
 /// <summary>Types de messages échangés sur le canal de contrôle TCP.</summary>
@@ -55,6 +55,7 @@ public enum MessageType
     InternetBlock = 73,   // couper / rétablir l'accès à Internet (le réseau local reste joignable)
     SetMute = 74,         // couper / rétablir le son des applications de l'élève
     AppsWatch = 77,       // démarrer / arrêter l'envoi de la liste des applications ouvertes
+    InputLock = 78,       // bloquer / débloquer le clavier et la souris de l'élève (écran visible)
     Survey = 75,          // sondage rapide envoyé aux élèves
     SurveyClose = 76,     // fin du sondage
     SetRestrictions = 70, // liste d'applications / sites interdits
@@ -380,4 +381,9 @@ public sealed class AppInfo
 public sealed class AppsListPayload
 {
     public List<AppInfo> Apps { get; set; } = new();
+}
+
+public sealed class InputLockPayload
+{
+    public bool Locked { get; set; }
 }

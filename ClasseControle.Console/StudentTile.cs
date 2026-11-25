@@ -32,6 +32,7 @@ internal sealed class StudentTile
     private readonly Border _handBadge;
     private readonly Border _netBadge;
     private readonly Border _muteBadge;
+    private readonly Border _inputBadge;
     private readonly Image _activeIcon = new() { Width = 16, Height = 16, Margin = new Thickness(0, 0, 5, 0), VerticalAlignment = VerticalAlignment.Center, IsVisible = false };
     private Avalonia.Media.Imaging.Bitmap? _activeIconBmp;
     private string _activeIconFor = "";
@@ -145,10 +146,30 @@ internal sealed class StudentTile
                 },
             },
         };
+        _inputBadge = new Border
+        {
+            Background = Palette.Accent,
+            CornerRadius = new CornerRadius(12),
+            Padding = new Thickness(7, 3),
+            Margin = new Thickness(6),
+            HorizontalAlignment = HorizontalAlignment.Left,
+            VerticalAlignment = VerticalAlignment.Top,
+            IsVisible = false,
+            Child = new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                Spacing = 4,
+                Children =
+                {
+                    Glyph.Make(Glyph.InputLock, 13, Brushes.White),
+                    new TextBlock { Text = "Clavier/souris bloqués", Foreground = Brushes.White, FontSize = 11, FontWeight = FontWeight.Bold },
+                },
+            },
+        };
         _thumbBox = new Border
         {
             Background = new SolidColorBrush(Color.FromRgb(30, 38, 52)),
-            Child = new Grid { Children = { _thumb, _overlay, _handBadge, _netBadge, _muteBadge } },
+            Child = new Grid { Children = { _thumb, _overlay, _handBadge, _netBadge, _muteBadge, _inputBadge } },
         };
 
         var cardContent = new DockPanel();
@@ -293,6 +314,7 @@ internal sealed class StudentTile
         _handBadge.IsVisible = Conn.IsHandRaised;
         _netBadge.IsVisible = Conn.IsConnected && Conn.IsInternetBlocked;
         _muteBadge.IsVisible = Conn.IsConnected && Conn.IsMuted;
+        _inputBadge.IsVisible = Conn.IsConnected && Conn.IsInputLocked;
         UpdateActiveApp();
         if (!Conn.IsConnected)
         {
