@@ -5,7 +5,7 @@ namespace ClasseControle.Common;
 
 /// <summary>
 /// Version de l'application et détection d'une mise à jour installée sur le disque.
-/// La mise à jour est faite par une tâche planifiée SYSTEM (installer/update.ps1) qui
+/// La mise à jour est faite par une tâche planifiée SYSTEM (ClasseControle.exe --update) qui
 /// télécharge la nouvelle version depuis GitHub et remplace ClasseControle.exe ;
 /// le programme en cours d'exécution s'en aperçoit ici et redémarre (ou le propose).
 /// </summary>

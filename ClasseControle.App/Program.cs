@@ -21,6 +21,30 @@ public static class Program
     [STAThread]
     public static int Main(string[] args)
     {
+        // Commandes d'administration (installateur, mise à jour) : sans interface.
+        if (Maintenance.IsCommand(args)) return Maintenance.Run(args);
+        try
+        {
+            AppDomain.CurrentDomain.UnhandledException += (_, e) => { if (e.ExceptionObject is Exception ex) StartupErrors.Report(ex); };
+            return Start(args);
+        }
+        catch (Exception ex)
+        {
+            StartupErrors.Report(ex);
+            return 1;
+        }
+    }
+
+    /// <summary>
+    /// Rendu : OpenGL natif de Windows (WGL), sinon rendu logiciel. On n'utilise pas ANGLE
+    /// (av_libglesv2.dll, non signé) : une bibliothèque de moins à autoriser.
+    /// </summary>
+    private static AppBuilder Configure<T>() where T : Application, new() =>
+        AppBuilder.Configure<T>().UsePlatformDetect().LogToTrace()
+            .With(new Win32PlatformOptions { RenderingMode = new[] { Win32RenderingMode.Wgl, Win32RenderingMode.Software } });
+
+    private static int Start(string[] args)
+    {
         bool forceChoice = args.Any(a => Is(a, "--choisir", "--choose"));
         AppMode mode = forceChoice ? AppMode.None : ModeFromArgs(args);
         if (mode == AppMode.None && !forceChoice) mode = ModeStore.Load();
@@ -29,7 +53,7 @@ public static class Program
         {
             // Fenêtre de choix (application Avalonia dédiée), puis relance dans le mode choisi :
             // Avalonia ne peut être initialisé qu'une fois par processus.
-            var chooser = AppBuilder.Configure<ChooserApp>().UsePlatformDetect().LogToTrace();
+            var chooser = Configure<ChooserApp>();
             chooser.StartWithClassicDesktopLifetime(args);
             if (ChooserApp.Choice == AppMode.None) return 0;
             return Relaunch(ChooserApp.Choice);
@@ -47,12 +71,10 @@ public static class Program
                 _agentMutex?.Dispose();
                 _agentMutex = null;
             };
-            return AppBuilder.Configure<ClasseControle.Agent.App>().UsePlatformDetect().LogToTrace()
-                .StartWithClassicDesktopLifetime(args);
+            return Configure<ClasseControle.Agent.App>().StartWithClassicDesktopLifetime(args);
         }
 
-        return AppBuilder.Configure<ClasseControle.Console.App>().UsePlatformDetect().LogToTrace()
-            .StartWithClassicDesktopLifetime(args);
+        return Configure<ClasseControle.Console.App>().StartWithClassicDesktopLifetime(args);
     }
 
     private static bool Is(string arg, params string[] names) =>

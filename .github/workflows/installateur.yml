@@ -62,9 +62,10 @@ jobs:
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force out, portable\ClasseControle | Out-Null
-          # Application unique : le mode (professeur / élève) est demandé au premier lancement.
-          Copy-Item publish\app\ClasseControle.exe out\
-          Copy-Item publish\app\ClasseControle.exe, dist\GUIDE.txt portable\ClasseControle\
+          # Fichier unique (compatibilité avec les mises à jour des postes en 1.10 à 1.12).
+          Copy-Item publish\single\ClasseControle.exe out\
+          # Version portable = programme + bibliothèques (aussi utilisée par la mise à jour automatique).
+          Copy-Item publish\app\*.exe, publish\app\*.dll, dist\GUIDE.txt portable\ClasseControle\
           Compress-Archive -Path portable\ClasseControle -DestinationPath out\ClasseControle-portable.zip
           $setup = Get-ChildItem publish\installer\*.exe -ErrorAction SilentlyContinue | Select-Object -First 1
           if ($setup) { Copy-Item $setup.FullName out\ClasseControle-Setup.exe }

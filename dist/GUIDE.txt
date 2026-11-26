@@ -218,6 +218,10 @@ switch / même sous-réseau).
       - PC de l'établissement : demander au service informatique
         d'autoriser Classe_controle. Ne pas contourner la stratégie.
       La solution définitive est une version signée numériquement.
+      Depuis la 1.13.0, seul ClasseControle.exe n'est pas signé (rien
+      n'est extrait dans le dossier temporaire, plus aucun script) :
+      le service informatique n'a qu'un fichier à autoriser.
+      En cas d'erreur au démarrage : %LocalAppData%\Classe_controle\erreurs.log
   • Le contrôle à distance ne peut pas piloter les fenêtres UAC
     (« Voulez-vous autoriser… ») ni un logiciel lancé en administrateur
     si l'agent n'est pas lui-même administrateur.

@@ -2,6 +2,11 @@
 
 Toutes les versions publiées : [page des versions](https://github.com/yacineboulyali/ClasseControl/releases).
 
+## 1.13.0
+- Fiabilité face au contrôle des applications de Windows (erreur 4551) : plus d'extraction dans le dossier temporaire, DLL ANGLE retirée (seul `ClasseControle.exe` n'est pas signé)
+- Scripts PowerShell remplacés par des commandes de l'application (`--setup`, `--update`, `--remove-games`, `--cleanup`)
+- Message d'erreur clair et journal en cas d'échec au démarrage ; rendu graphique de secours (logiciel)
+
 ## 1.12.0
 - Demande de silence : emoji 🤫 + son de notification chez les élèves (message personnalisable, variante sans son)
 

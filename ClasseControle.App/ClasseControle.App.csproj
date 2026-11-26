@@ -18,7 +18,7 @@
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>app.ico</ApplicationIcon>
     <NoWarn>CA1416</NoWarn>
-    <Version>1.12.0</Version>
+    <Version>1.13.0</Version>
     <Product>Classe_controle</Product>
     <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
   </PropertyGroup>
@@ -35,4 +35,10 @@
   <ItemGroup>
     <AvaloniaResource Include="app-icon.png" />
   </ItemGroup>
+  <!-- ANGLE (av_libglesv2.dll, non signé) n'est pas utilisé : rendu WGL ou logiciel. -->
+  <Target Name="ExclureAngle" AfterTargets="ComputeResolvedFilesToPublishList">
+    <ItemGroup>
+      <ResolvedFileToPublish Remove="@(ResolvedFileToPublish)" Condition="'%(Filename)%(Extension)' == 'av_libglesv2.dll'" />
+    </ItemGroup>
+  </Target>
 </Project>

@@ -295,10 +295,17 @@ l'application ; se compile aussi depuis Linux).
 ```bash
 # Application unique (exe autonome, console + agent)
 dotnet publish ClasseControle.App/ClasseControle.App.csproj \
-  -c Release -r win-x64 --self-contained true -p:Version=1.11.0 \
-  -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true \
-  -p:EnableCompressionInSingleFile=true -o publish/app
+  -c Release -r win-x64 --self-contained true -p:Version=1.13.0 \
+  -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=false \
+  -p:EnableCompressionInSingleFile=true -p:DebugType=none -o publish/app
 ```
+
+Le dossier `publish/app` contient alors `ClasseControle.exe` et deux DLL natives
+(SkiaSharp, HarfBuzzSharp) **signées par Microsoft** : rien n'est extrait dans le
+dossier temporaire au lancement. Les opérations d'administration (tâches planifiées,
+pare-feu, mise à jour, suppression des jeux) sont des commandes de l'exe lui-même
+(`ClasseControle.exe --setup eleve|prof`, `--setup-update`, `--update`,
+`--remove-games`, `--cleanup`) : aucun script PowerShell.
 
 L'installateur se construit sous Windows avec `installer\build.ps1`
 (Inno Setup 6). Les versions sont publiées automatiquement sur GitHub :
@@ -328,6 +335,22 @@ qui refuse les programmes **non signés numériquement**. Deux cas :
 |---|---|---|
 | **Smart App Control** (Windows 11, PC personnel) | Sécurité Windows › Contrôle des applications et du navigateur › *Smart App Control* est **Activé** | Le désactiver sur ce PC (⚠ il ne peut être réactivé qu'en réinstallant Windows), ou attendre la version signée |
 | **Stratégie de l'établissement** (WDAC / Intune, PC gérés par le service informatique) | PC fourni par l'établissement ; Smart App Control désactivé ou absent | Demander au service informatique d'**autoriser Classe_controle** (par empreinte du fichier ou par éditeur une fois signé). Ne pas contourner la stratégie |
+
+Depuis la version 1.13.0, l'application limite au maximum ce qui peut être bloqué :
+
+- **un seul fichier non signé** : `ClasseControle.exe` (les deux DLL livrées à côté sont
+  signées par Microsoft ; la DLL graphique ANGLE n'est plus livrée) ;
+- **plus rien n'est extrait ni lancé depuis le dossier temporaire** au démarrage ;
+- **plus aucun script PowerShell** (bloqués en « mode de langage restreint ») : tâches,
+  pare-feu, mise à jour et suppression des jeux sont faits par l'exe ;
+- en cas d'échec au démarrage, un **message clair** s'affiche et l'erreur est écrite dans
+  `%LocalAppData%\Classe_controle\erreurs.log` (journaux d'administration :
+  `%ProgramData%\Classe_controle\maintenance.log` et `update.log`).
+
+Sur un PC géré, le service informatique peut donc autoriser **un seul fichier**
+(`C:\Program Files\Classe_controle\ClasseControle.exe`, par chemin ou par empreinte).
+L'installateur Inno Setup, lui, s'exécute toujours depuis le dossier temporaire : sur un
+poste qui bloque ce dossier, installer avec la version portable, ou faire autoriser l'installateur.
 
 **Solution définitive : signer le code.** Les fichiers (`ClasseControle.exe` et l'installateur)
 doivent être signés avec un certificat de signature de code reconnu par Microsoft. Pistes :

@@ -1,5 +1,9 @@
-<#
-  Construit l'application unique (ClasseControle.exe) puis l'installateur.
+﻿<#
+  Construit l'application unique puis l'installateur :
+   - publish/app    : ClasseControle.exe + ses bibliothèques (installateur, version portable,
+                      mise à jour automatique) ; rien n'est extrait dans le dossier temporaire ;
+   - publish/single : un seul ClasseControle.exe autonome (compatibilité : mises à jour des
+                      postes installés en 1.10 à 1.12).
   Prérequis (sur Windows) : SDK .NET 8 et Inno Setup 6 (https://jrsoftware.org/isinfo.php).
   Usage : powershell -ExecutionPolicy Bypass -File installer\build.ps1
 #>
@@ -12,12 +16,15 @@ $version = (Select-String -Path (Join-Path $PSScriptRoot 'ClasseControle.iss') -
 Write-Host "Version $version"
 
 $common = @('-c', 'Release', '-r', 'win-x64', '--self-contained', 'true', "-p:Version=$version",
-            '-p:PublishSingleFile=true', '-p:IncludeNativeLibrariesForSelfExtract=true',
-            '-p:EnableCompressionInSingleFile=true')
+            '-p:PublishSingleFile=true', '-p:EnableCompressionInSingleFile=true', '-p:DebugType=none')
 
-# Application unique : console du professeur + agent élève dans un seul .exe.
-dotnet publish ClasseControle.App/ClasseControle.App.csproj @common -o publish/app
+# Version installée : bibliothèques natives à côté de l'exe (pas d'extraction dans %TEMP%).
+dotnet publish ClasseControle.App/ClasseControle.App.csproj @common '-p:IncludeNativeLibrariesForSelfExtract=false' -o publish/app
 if ($LASTEXITCODE -ne 0) { throw "Échec de la compilation de l'application" }
+
+# Version « un seul fichier » (compatibilité avec les anciens programmes de mise à jour).
+dotnet publish ClasseControle.App/ClasseControle.App.csproj @common '-p:IncludeNativeLibrariesForSelfExtract=true' -o publish/single
+if ($LASTEXITCODE -ne 0) { throw "Échec de la compilation de l'application (fichier unique)" }
 
 $iscc = @("${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe", "$env:ProgramFiles\Inno Setup 6\ISCC.exe",
           "$env:LOCALAPPDATA\Programs\Inno Setup 6\ISCC.exe") | Where-Object { Test-Path $_ } | Select-Object -First 1

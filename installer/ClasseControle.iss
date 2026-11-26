@@ -19,11 +19,11 @@
 ;  utilisateurs » est cochée par défaut (aussi en silencieux). Pour ne pas la faire :
 ;    ClasseControle-Setup.exe /VERYSILENT /ROLE=eleve /ROOM=CLASSE /MERGETASKS="!supprjeux"
 ;
-;  Compilation : voir build.ps1 (publie les deux .exe puis appelle ISCC).
+;  Compilation : voir build.ps1 (publie l'application puis appelle ISCC).
 ; ============================================================================
 
 #define AppName "Classe_controle"
-#define AppVersion "1.12.0"
+#define AppVersion "1.13.0"
 #define Publisher "Classe_controle"
 
 [Setup]
@@ -55,14 +55,23 @@ Name: "fr"; MessagesFile: "compiler:Languages\French.isl"
 Name: "supprjeux"; Description: "Supprimer les jeux préinstallés de Windows pour TOUS les utilisateurs (Solitaire, Candy Crush, Minecraft, Mahjong, Démineur…)"; GroupDescription: "Poste élève :"; Check: IsStudent
 Name: "majauto"; Description: "Mise à jour automatique depuis GitHub (recommandé) : vérification toutes les heures, installation sans intervention"; GroupDescription: "Mises à jour :"
 
+[InstallDelete]
+; Anciennes versions : scripts PowerShell remplacés par les commandes de ClasseControle.exe,
+; bibliothèque ANGLE plus utilisée, fichiers laissés par une mise à jour.
+Type: files; Name: "{app}\agent-setup.ps1"
+Type: files; Name: "{app}\remove-games.ps1"
+Type: files; Name: "{app}\update.ps1"
+Type: files; Name: "{app}\update-setup.ps1"
+Type: files; Name: "{app}\av_libglesv2.dll"
+Type: files; Name: "{app}\*.old-*"
+
 [Files]
-; Application unique, installée pour les deux modes.
-Source: "..\publish\app\ClasseControle.exe"; DestDir: "{app}"; Flags: ignoreversion
+; Application unique (les deux modes) : le programme et ses bibliothèques graphiques
+; (signées par Microsoft), installés dans Program Files. Rien n'est extrait dans le
+; dossier temporaire au démarrage.
+Source: "..\publish\app\*.exe"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\publish\app\*.dll"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\dist\GUIDE.txt"; DestDir: "{app}"; Flags: ignoreversion; Check: IsTeacher
-Source: "agent-setup.ps1"; DestDir: "{app}"; Flags: ignoreversion; Check: IsStudent
-Source: "remove-games.ps1"; DestDir: "{app}"; Flags: ignoreversion; Tasks: supprjeux
-Source: "update.ps1"; DestDir: "{app}"; Flags: ignoreversion; Tasks: majauto
-Source: "update-setup.ps1"; DestDir: "{app}"; Flags: ignoreversion; Tasks: majauto
 
 [Icons]
 ; Uniquement pour le professeur : le poste élève n'a AUCUN raccourci.
@@ -71,26 +80,22 @@ Name: "{autodesktop}\Classe_controle"; Filename: "{app}\ClasseControle.exe"; Par
 Name: "{autoprograms}\Classe_controle — Guide"; Filename: "{app}\GUIDE.txt"; Check: IsTeacher
 
 [Run]
-; Pare-feu (les deux modes utilisent le même exécutable).
-Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall add rule name=""Classe_controle Console"" dir=in action=allow program=""{app}\ClasseControle.exe"" enable=yes profile=private,domain"; Flags: runhidden; Check: IsTeacher
-; Élève : tâche planifiée à l'ouverture de session (mode --eleve) + règles de pare-feu.
-Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\agent-setup.ps1"" -Action Install -AgentPath ""{app}\ClasseControle.exe"""; Flags: runhidden waituntilterminated; StatusMsg: "Configuration du poste élève…"; Check: IsStudent
-; Jeux préinstallés : suppression pour tous les utilisateurs + retrait de l'image Windows.
-Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\remove-games.ps1"""; Flags: runhidden waituntilterminated; StatusMsg: "Suppression des jeux préinstallés de Windows (peut prendre une minute)…"; Tasks: supprjeux
-; Mise à jour automatique : tâche planifiée SYSTEM (version officielle GitHub uniquement).
-Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\update-setup.ps1"" -Action Install -ScriptPath ""{app}\update.ps1"""; Flags: runhidden waituntilterminated; StatusMsg: "Configuration de la mise à jour automatique…"; Tasks: majauto
+; Toute la configuration passe par ClasseControle.exe lui-même (aucun script à autoriser).
+Filename: "{app}\ClasseControle.exe"; Parameters: "--setup prof"; Flags: runhidden waituntilterminated; StatusMsg: "Configuration du poste du professeur…"; Check: IsTeacher
+Filename: "{app}\ClasseControle.exe"; Parameters: "--setup eleve"; Flags: runhidden waituntilterminated; StatusMsg: "Configuration du poste élève…"; Check: IsStudent
+Filename: "{app}\ClasseControle.exe"; Parameters: "--remove-games"; Flags: runhidden waituntilterminated; StatusMsg: "Suppression des jeux préinstallés de Windows (peut prendre une minute)…"; Tasks: supprjeux
+Filename: "{app}\ClasseControle.exe"; Parameters: "--setup-update"; Flags: runhidden waituntilterminated; StatusMsg: "Configuration de la mise à jour automatique…"; Tasks: majauto
 ; Démarre tout de suite dans la session de l'utilisateur.
 Filename: "{app}\ClasseControle.exe"; Parameters: "--eleve"; Flags: nowait runasoriginaluser skipifsilent; Check: IsStudent
 Filename: "{app}\ClasseControle.exe"; Parameters: "--prof"; Description: "Lancer la console professeur"; Flags: nowait postinstall skipifsilent runasoriginaluser; Check: IsTeacher
 
 [UninstallRun]
-Filename: "{sys}\schtasks.exe"; Parameters: "/Delete /TN ""\Classe_controle\MiseAJour"" /F"; Flags: runhidden; RunOnceId: "UpdateTask"
 Filename: "{sys}\taskkill.exe"; Parameters: "/F /IM ClasseControle.exe"; Flags: runhidden; RunOnceId: "KillApp"
-Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\agent-setup.ps1"" -Action Uninstall"; Flags: runhidden waituntilterminated; RunOnceId: "AgentCleanup"
-Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall delete rule name=""Classe_controle Console"""; Flags: runhidden; RunOnceId: "ConsoleFw"
+Filename: "{app}\ClasseControle.exe"; Parameters: "--cleanup"; Flags: runhidden waituntilterminated; RunOnceId: "Cleanup"
 
 [UninstallDelete]
-Type: files; Name: "{app}\ClasseControle.old*.exe"
+Type: files; Name: "{app}\*.old-*"
+Type: filesandordirs; Name: "{app}\.maj"
 Type: files; Name: "{app}\ClasseControle.update.tmp"
 Type: files; Name: "{app}\agent.ini"
 Type: files; Name: "{app}\classecontrole.ini"
