@@ -8,8 +8,9 @@ namespace ClasseControle.Agent;
 /// <summary>
 /// Applique les restrictions envoyées par le professeur :
 ///  • applications interdites → le processus est fermé dès qu'il apparaît ;
-///  • sites interdits → si l'onglet actif d'un navigateur a un titre contenant
-///    un mot-clé interdit, l'onglet est fermé (Ctrl+W) et l'élève est prévenu.
+///  • sites interdits → filtrage par NOM DE DOMAINE via un proxy local
+///    (<see cref="WebFilterGuard"/>, HTTP et HTTPS), complété par le contrôle du titre
+///    de l'onglet actif : un titre contenant un mot-clé interdit ferme l'onglet (Ctrl+W).
 /// Fonctionne sans droits administrateur (pas de modification du fichier hosts).
 /// Les restrictions restent actives jusqu'à leur levée par le professeur ou
 /// jusqu'à la fermeture de l'agent.
@@ -40,9 +41,13 @@ internal sealed class RestrictionEnforcer : IDisposable
     private DateTime _lastSiteClose = DateTime.MinValue;
     private DateTime _lastAppNotice = DateTime.MinValue;
 
+    /// <summary>Filtrage web par domaine (proxy local).</summary>
+    public WebFilterGuard Web { get; } = new();
+
     public RestrictionEnforcer(IAgentHost host)
     {
         _host = host;
+        Web.Notify += (title, text) => _host.ShowMessage(title, text, 5);
         _timer = new Timer(_ => Tick(), null, Timeout.Infinite, Timeout.Infinite);
     }
 
@@ -58,7 +63,9 @@ internal sealed class RestrictionEnforcer : IDisposable
         var names = Normalize(RestrictionCatalog.Expand(appsInput.Where(a => !string.Equals(a.Trim(), RestrictionCatalog.WindowsGames.Token, StringComparison.OrdinalIgnoreCase)),
                                                         RestrictionCatalog.AppCategories), stripExe: true)
                     .Where(a => !Protected.Contains(a));
-        var sites = Normalize(RestrictionCatalog.Expand(p.BlockedSites ?? new(), RestrictionCatalog.SiteCategories), stripExe: false);
+        // Titres d'onglets : « youtube.com » est cherché comme « youtube ».
+        var sites = Normalize(RestrictionCatalog.Expand(p.BlockedSites ?? new(), RestrictionCatalog.SiteCategories)
+                                  .Select(WebFilterRules.TitleKeyword), stripExe: false);
         lock (_lock)
         {
             _appNames = new HashSet<string>(names, StringComparer.OrdinalIgnoreCase);
@@ -81,6 +88,7 @@ internal sealed class RestrictionEnforcer : IDisposable
         };
         bool active = clean.Enabled && (clean.BlockedApps.Count > 0 || webActive);
         lock (_lock) _current = clean;
+        try { Web.Apply(clean); } catch { }
         _timer.Change(active ? 0 : Timeout.Infinite, 1000);
 
         if (active)
@@ -118,7 +126,10 @@ internal sealed class RestrictionEnforcer : IDisposable
             switch (r.Web)
             {
                 case WebMode.BlockList: EnforceSites(sites); break;
-                case WebMode.AllowList: EnforceAllowList(r.AllowedSites); break;
+                // Le proxy filtre déjà par domaine ; le contrôle par titre (moins fiable : titres
+                // traduits, accentués…) ne sert que si le proxy n'a pas pu démarrer.
+                case WebMode.AllowList when !Web.IsActive:
+                    EnforceAllowList(r.AllowedSites.Select(WebFilterRules.TitleKeyword).Where(k => k.Length > 0).ToList()); break;
                 case WebMode.BlockAll: EnforceApps(Browsers, new List<string>(), "Navigateur interdit"); break;
             }
         }
@@ -230,5 +241,9 @@ internal sealed class RestrictionEnforcer : IDisposable
             "Pendant ce cours, seuls ces sites sont autorisés : " + (allowed.Count > 0 ? string.Join(", ", allowed) : "aucun") + ".");
     }
 
-    public void Dispose() => _timer.Dispose();
+    public void Dispose()
+    {
+        _timer.Dispose();
+        Web.Dispose();
+    }
 }

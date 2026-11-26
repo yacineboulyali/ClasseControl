@@ -80,6 +80,7 @@ public enum MessageType
     SurveyAnswer = 121,   // réponse de l'élève à un sondage
     AppsList = 122,       // applications ouvertes sur le poste élève
     AgentNotice = 123,    // compte rendu d'une action (ex. jeux désinstallés)
+    WebBlocked = 124,     // le filtrage web a bloqué un site (nom de domaine)
 
     // --- Élève -> Prof ---
     HelloAck = 1,         // réponse à Hello (accepté/refusé)
@@ -215,8 +216,9 @@ public sealed class BroadcastStartPayload
 
 /// <summary>
 /// Restrictions appliquées sur le poste élève. Les applications sont des noms
-/// de processus (sans .exe) ; les sites sont des mots-clés recherchés dans le
-/// titre de l'onglet actif du navigateur (ex : "youtube", "facebook").
+/// de processus (sans .exe) ; les sites sont des noms de domaine (« youtube.com »,
+/// sous-domaines compris) ou des mots-clés (« youtube »), filtrés par le proxy local
+/// de l'agent et recherchés aussi dans le titre de l'onglet actif du navigateur.
 /// </summary>
 public enum WebMode
 {
@@ -404,6 +406,13 @@ public sealed class AppsListPayload
 public sealed class InputLockPayload
 {
     public bool Locked { get; set; }
+}
+
+public sealed class WebBlockedPayload
+{
+    public string Host { get; set; } = "";
+    /// <summary>Nom saisi par l'élève en début de séance (vide hors séance).</summary>
+    public string Student { get; set; } = "";
 }
 
 public sealed class AgentNoticePayload

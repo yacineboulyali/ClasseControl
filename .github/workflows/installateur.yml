@@ -48,11 +48,27 @@ jobs:
 
       # Construit les deux .exe puis l'installateur. En cas d'échec de l'installateur,
       # la version est quand même publiée avec les .exe et le journal de construction.
+      # Signature de code (contre SmartScreen et l'erreur 4551) : active si un certificat est
+      # configuré dans les secrets du dépôt (Settings → Secrets and variables → Actions).
+      # Voir installer/sign.ps1 :
+      #   • certificat .pfx : CC_SIGN_PFX_BASE64 + CC_SIGN_PFX_PASSWORD ;
+      #   • Azure Trusted Signing : CC_TS_ENDPOINT, CC_TS_ACCOUNT, CC_TS_PROFILE,
+      #     AZURE_TENANT_ID, AZURE_CLIENT_ID, AZURE_CLIENT_SECRET.
+      # Sans secret : construction non signée, comme avant.
       - name: Construire exécutables et installateur
         if: steps.version.outputs.exists != 'true'
         id: build
         continue-on-error: true
         shell: pwsh
+        env:
+          CC_SIGN_PFX_BASE64: ${{ secrets.CC_SIGN_PFX_BASE64 }}
+          CC_SIGN_PFX_PASSWORD: ${{ secrets.CC_SIGN_PFX_PASSWORD }}
+          CC_TS_ENDPOINT: ${{ secrets.CC_TS_ENDPOINT }}
+          CC_TS_ACCOUNT: ${{ secrets.CC_TS_ACCOUNT }}
+          CC_TS_PROFILE: ${{ secrets.CC_TS_PROFILE }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
         run: |
           powershell -ExecutionPolicy Bypass -File installer\build.ps1 *>&1 | Tee-Object -FilePath build-log.txt
           if (-not (Get-ChildItem publish\installer\*.exe -ErrorAction SilentlyContinue)) { throw "Installateur non produit" }
@@ -70,6 +86,16 @@ jobs:
           $setup = Get-ChildItem publish\installer\*.exe -ErrorAction SilentlyContinue | Select-Object -First 1
           if ($setup) { Copy-Item $setup.FullName out\ClasseControle-Setup.exe }
           else { Copy-Item build-log.txt out\build-log.txt -ErrorAction SilentlyContinue }
+          # Empreintes SHA-256 : permettent au service informatique d'autoriser les fichiers
+          # (règle « par hachage » de WDAC / AppLocker / Intune) tant qu'ils ne sont pas signés.
+          Get-ChildItem out -File | Where-Object Name -ne 'SHA256SUMS.txt' | ForEach-Object {
+            "{0}  {1}" -f (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower(), $_.Name
+          } | Set-Content out\SHA256SUMS.txt -Encoding ascii
+          # État de la signature, visible dans le journal de la construction.
+          Get-ChildItem out\*.exe | ForEach-Object {
+            $sig = Get-AuthenticodeSignature $_.FullName
+            Write-Host ("{0} : {1} {2}" -f $_.Name, $sig.Status, $sig.SignerCertificate.Subject)
+          }
           Get-ChildItem out
 
       - name: Créer la version GitHub

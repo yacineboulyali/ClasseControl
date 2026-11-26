@@ -1,8 +1,6 @@
 using System.Diagnostics;
-using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
 using System.Security.Principal;
-using Microsoft.Win32;
 
 namespace ClasseControle.Agent;
 
@@ -23,8 +21,6 @@ namespace ClasseControle.Agent;
 internal static class InternetBlocker
 {
     private const string RuleName = "Classe_controle - Internet coupé";
-    private const string SettingsKey = @"Software\Microsoft\Windows\CurrentVersion\Internet Settings";
-    private const string BackupKey = @"Software\Classe_controle\ProxyBackup";
 
     // Toutes les adresses IPv4 publiques (on exclut 10/8, 127/8, 169.254/16, 172.16/12, 192.168/16, multicast).
     private const string PublicIpv4 =
@@ -63,8 +59,8 @@ internal static class InternetBlocker
     {
         // On nettoie les deux méthodes : sûr même si l'état a été perdu.
         Netsh($"advfirewall firewall delete rule name=\"{RuleName}\"");
+        IsBlocked = false;   // avant RestoreProxy : le filtrage web reprend alors la main tout de suite
         RestoreProxy();
-        IsBlocked = false;
     }
 
     /// <summary>Au démarrage de l'agent : rétablit Internet si une coupure était restée active.</summary>
@@ -72,77 +68,34 @@ internal static class InternetBlocker
     {
         try
         {
-            using var backup = Registry.CurrentUser.OpenSubKey(BackupKey);
-            if (backup != null) RestoreProxy();
+            if (SystemProxy.HasBackup) SystemProxy.Restore();
         }
         catch { }
         if (IsElevated) Netsh($"advfirewall firewall delete rule name=\"{RuleName}\"");
     }
 
     // ---------- Méthode « proxy » (sans droits administrateur) ----------
-    private static void BlockWithProxy()
-    {
-        using var settings = Registry.CurrentUser.CreateSubKey(SettingsKey);
-        using (var backup = Registry.CurrentUser.CreateSubKey(BackupKey))
-        {
-            // Sauvegarde unique des réglages de l'élève, restaurés à la levée.
-            if (backup.GetValue("Saved") == null)
-            {
-                backup.SetValue("ProxyEnable", settings.GetValue("ProxyEnable", 0) ?? 0, RegistryValueKind.DWord);
-                backup.SetValue("ProxyServer", settings.GetValue("ProxyServer", "") ?? "");
-                backup.SetValue("ProxyOverride", settings.GetValue("ProxyOverride", "") ?? "");
-                backup.SetValue("AutoConfigURL", settings.GetValue("AutoConfigURL", "") ?? "");
-                backup.SetValue("Saved", 1, RegistryValueKind.DWord);
-            }
-        }
-        settings.SetValue("ProxyEnable", 1, RegistryValueKind.DWord);
-        settings.SetValue("ProxyServer", "127.0.0.1:9");  // port « discard » : aucune réponse
-        settings.SetValue("ProxyOverride", "<local>;10.*;192.168.*;169.254.*;" + string.Join(";", Enumerable.Range(16, 16).Select(i => $"172.{i}.*")));
-        settings.DeleteValue("AutoConfigURL", throwOnMissingValue: false);
-        NotifySettingsChanged();
-    }
+    /// <summary>Adresse morte : port « discard », aucune réponse.</summary>
+    public const string DeadProxy = "127.0.0.1:9";
 
+    private static void BlockWithProxy() => SystemProxy.Apply(DeadProxy);
+
+    /// <summary>Levée de la coupure : le filtrage web, s'il est actif, reprend la main sur le proxy.</summary>
     private static void RestoreProxy()
     {
-        try
-        {
-            using var backup = Registry.CurrentUser.OpenSubKey(BackupKey);
-            if (backup == null) return;
-            using var settings = Registry.CurrentUser.CreateSubKey(SettingsKey);
-            settings.SetValue("ProxyEnable", backup.GetValue("ProxyEnable", 0) ?? 0, RegistryValueKind.DWord);
-            Restore(settings, backup, "ProxyServer");
-            Restore(settings, backup, "ProxyOverride");
-            Restore(settings, backup, "AutoConfigURL");
-            backup.Close();
-            Registry.CurrentUser.DeleteSubKeyTree(BackupKey, throwOnMissingSubKey: false);
-            NotifySettingsChanged();
-        }
-        catch { }
+        SystemProxy.Restore();
+        try { Unblocked?.Invoke(); } catch { }
     }
 
-    private static void Restore(RegistryKey settings, RegistryKey backup, string name)
-    {
-        string v = backup.GetValue(name, "") as string ?? "";
-        if (v.Length > 0) settings.SetValue(name, v);
-        else settings.DeleteValue(name, throwOnMissingValue: false);
-    }
+    /// <summary>Internet vient d'être rétabli (le filtrage web réapplique alors son proxy).</summary>
+    public static event Action? Unblocked;
 
-    [DllImport("wininet.dll", SetLastError = true)]
-    private static extern bool InternetSetOption(IntPtr hInternet, int option, IntPtr buffer, int length);
+    /// <summary>Coupure en cours par la méthode « proxy » (le filtrage web ne doit pas l'écraser).</summary>
+    public static bool BlockedByProxy => IsBlocked && Method == "proxy";
 
-    /// <summary>Prévient Windows et les navigateurs ouverts que les réglages proxy ont changé.</summary>
-    private static void NotifySettingsChanged()
-    {
-        const int INTERNET_OPTION_SETTINGS_CHANGED = 39, INTERNET_OPTION_REFRESH = 37;
-        try
-        {
-            InternetSetOption(IntPtr.Zero, INTERNET_OPTION_SETTINGS_CHANGED, IntPtr.Zero, 0);
-            InternetSetOption(IntPtr.Zero, INTERNET_OPTION_REFRESH, IntPtr.Zero, 0);
-        }
-        catch { }
-    }
+    internal static bool Netsh(string args) => NetshImpl(args);
 
-    private static bool Netsh(string args)
+    private static bool NetshImpl(string args)
     {
         try
         {

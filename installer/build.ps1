@@ -26,9 +26,27 @@ if ($LASTEXITCODE -ne 0) { throw "Échec de la compilation de l'application" }
 dotnet publish ClasseControle.App/ClasseControle.App.csproj @common '-p:IncludeNativeLibrariesForSelfExtract=true' -o publish/single
 if ($LASTEXITCODE -ne 0) { throw "Échec de la compilation de l'application (fichier unique)" }
 
+# Signature de code (voir sign.ps1) : seulement si un certificat est configuré. Les DLL
+# fournies avec l'application sont déjà signées par Microsoft ; seul ClasseControle.exe l'est ici.
+$sign = Join-Path $PSScriptRoot 'sign.ps1'
+& powershell -NoProfile -ExecutionPolicy Bypass -File $sign -Check
+$signing = ($LASTEXITCODE -eq 0)
+if ($signing) {
+    & powershell -NoProfile -ExecutionPolicy Bypass -File $sign (Join-Path $root 'publish\app\ClasseControle.exe') (Join-Path $root 'publish\single\ClasseControle.exe')
+    if ($LASTEXITCODE -ne 0) { throw "Échec de la signature de ClasseControle.exe" }
+} else {
+    Write-Warning "Aucun certificat de signature configuré : ClasseControle.exe ne sera PAS signé (SmartScreen, erreur 4551). Voir installer\sign.ps1."
+}
+
 $iscc = @("${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe", "$env:ProgramFiles\Inno Setup 6\ISCC.exe",
           "$env:LOCALAPPDATA\Programs\Inno Setup 6\ISCC.exe") | Where-Object { Test-Path $_ } | Select-Object -First 1
 if (-not $iscc) { throw 'Inno Setup 6 introuvable : installez-le depuis https://jrsoftware.org/isinfo.php' }
-& $iscc (Join-Path $PSScriptRoot 'ClasseControle.iss')
+$isccArgs = @()
+if ($signing) {
+    # Inno Setup signe l'installateur et le programme de désinstallation.
+    $isccArgs += '/DSIGN'
+    $isccArgs += "/Sccsign=powershell.exe -NoProfile -ExecutionPolicy Bypass -File `$q$sign`$q `$f"
+}
+& $iscc @isccArgs (Join-Path $PSScriptRoot 'ClasseControle.iss')
 if ($LASTEXITCODE -ne 0) { throw "Échec d'Inno Setup (code $LASTEXITCODE)" }
 Write-Host "Installateur créé dans : $root\publish\installer" -ForegroundColor Green

@@ -55,6 +55,61 @@ public static class RestrictionCatalog
 
     public static readonly Category[] SiteCategories = { SocialSites, VideoSites, GameSites };
 
+    // ---------- Sites : noms de domaine (filtrage web par domaine, voir WebFilter.cs) ----------
+
+    /// <summary>
+    /// Domaines de chaque catégorie de sites. Un domaine couvre aussi ses sous-domaines
+    /// (« tiktok.com » bloque www.tiktok.com, m.tiktok.com…).
+    /// </summary>
+    public static readonly Dictionary<string, string[]> SiteCategoryDomains = new(StringComparer.OrdinalIgnoreCase)
+    {
+        [SocialSites.Token] = new[]
+        {
+            "facebook.com", "fbcdn.net", "fb.com", "messenger.com", "instagram.com", "cdninstagram.com",
+            "tiktok.com", "tiktokcdn.com", "tiktokv.com", "byteoversea.com", "snapchat.com", "sc-cdn.net",
+            "twitter.com", "x.com", "twimg.com", "pinterest.com", "pinimg.com", "reddit.com", "redd.it",
+            "redditmedia.com", "threads.net", "linkedin.com", "tumblr.com", "discord.com", "discord.gg",
+            "discordapp.com", "web.whatsapp.com", "web.telegram.org",
+        },
+        [VideoSites.Token] = new[]
+        {
+            "youtube.com", "youtu.be", "ytimg.com", "googlevideo.com", "youtube-nocookie.com", "netflix.com",
+            "nflxvideo.net", "nflximg.net", "twitch.tv", "ttvnw.net", "jtvnw.net", "dailymotion.com",
+            "dmcdn.net", "primevideo.com", "shahid.mbc.net", "shahid.net", "disneyplus.com", "vimeo.com",
+            "kick.com", "osn.com", "starzplay.com",
+        },
+        [GameSites.Token] = new[]
+        {
+            "poki.com", "poki.fr", "friv.com", "crazygames.com", "crazygames.fr", "miniclip.com", "y8.com",
+            "agar.io", "slither.io", "krunker.io", "roblox.com", "rbxcdn.com", "jeux.fr", "jeu.fr",
+            "jeuxgratuits.com", "coolmathgames.com", "kizi.com", "silvergames.com", "itch.io", "addictinggames.com",
+            "armorgames.com", "kongregate.com", "gameflare.com", "1001jeux.fr",
+        },
+    };
+
+    /// <summary>
+    /// Comme <see cref="Expand"/> pour les sites, mais les catégories donnent leurs NOMS DE
+    /// DOMAINE (en plus de leurs mots-clés) : utilisé par le filtrage web par domaine.
+    /// </summary>
+    public static List<string> ExpandDomains(IEnumerable<string> items)
+    {
+        var result = new List<string>();
+        foreach (var raw in items)
+        {
+            var i = raw.Trim();
+            if (i.Length == 0) continue;
+            if (i.StartsWith('@'))
+            {
+                if (SiteCategoryDomains.TryGetValue(i, out var domains)) result.AddRange(domains);
+                var cat = SiteCategories.FirstOrDefault(c => string.Equals(c.Token, i, StringComparison.OrdinalIgnoreCase));
+                // Mots-clés d'un seul mot seulement : « prime video » ou « jeux gratuits » seraient trop larges en domaine.
+                if (cat != null) result.AddRange(cat.Items.Where(w => !w.Contains(' ') && !w.Contains('.') && w.Length >= 5));
+            }
+            else result.Add(i);
+        }
+        return result.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+    }
+
     /// <summary>Remplace les catégories « @… » par leur contenu ; les autres entrées sont gardées.</summary>
     public static List<string> Expand(IEnumerable<string> items, IEnumerable<Category> catalog)
     {

@@ -92,6 +92,9 @@ internal sealed class AgentServer
         _settings = settings;
         _host = host;
         _restrictions = new RestrictionEnforcer(host);
+        // Sites bloqués par le filtrage web : signalés au professeur (journal de la console).
+        _restrictions.Web.SiteBlocked += site =>
+            _ = PushToAll(MessageType.WebBlocked, new WebBlockedPayload { Host = site, Student = _studentName });
     }
 
     public bool HandRaised => _handRaised;
@@ -153,6 +156,7 @@ internal sealed class AgentServer
     public void Start()
     {
         InternetBlocker.RecoverAtStartup();
+        WebFilterGuard.RecoverAtStartup();
         _ = Task.Run(() => DiscoveryLoop(_cts.Token));
         _ = Task.Run(() => ControlLoop(_cts.Token));
     }

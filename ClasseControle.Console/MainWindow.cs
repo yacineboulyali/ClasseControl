@@ -776,6 +776,9 @@ internal sealed class MainWindow : Window
             SetStatus(text);
             ActionLog.Add("Compte rendu", c.Info.MachineName, text);
         });
+        // Sites bloqués par le filtrage web : journal des actions (et fichier CSV du jour).
+        conn.WebBlocked += (c, w) => ActionLog.Add("Site bloqué", c.Info.MachineName,
+            w.Student.Length > 0 ? $"{w.Host} — {w.Student}" : w.Host);
     }
 
     /// <summary>Poste (re)connecté : présence, miniature, restrictions, diffusion, séance, équipe.</summary>

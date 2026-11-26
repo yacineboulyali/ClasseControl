@@ -2,6 +2,15 @@
 
 Toutes les versions publiées : [page des versions](https://github.com/yacineboulyali/ClasseControl/releases).
 
+## 1.14.0
+- Filtrage web avancé par **nom de domaine** (HTTP et HTTPS, sous-domaines compris) : proxy de filtrage local sur le poste élève, sans déchiffrement ni certificat à installer
+- Catégories de sites enrichies de leurs domaines (CDN compris : googlevideo, fbcdn, tiktokcdn…) ; listes libres en domaine (« netflix.com », « *.tiktok.com », URL collée) ou mot-clé
+- Mode « sites approuvés » : domaines techniques ajoutés automatiquement (images Wikipédia, vidéos YouTube, connexion Microsoft/Google, vérification des certificats)
+- Page « Site bloqué » (HTTP), avertissement de l'élève, et **sites bloqués inscrits dans le journal** de la console (poste, élève, domaine)
+- Anti-contournement : réglages proxy rétablis en 2 s ; option d'installation « Filtrage web renforcé » (`--browser-policies`, stratégies Chrome, Edge, Brave, Firefox) ; pare-feu des navigateurs si l'agent est administrateur
+- Signature de code prête (certificat .pfx ou Azure Trusted Signing, via les secrets GitHub) : exécutables, installateur et désinstallateur ; empreintes SHA-256 publiées avec chaque version
+- Mise à jour automatique : une version signée n'accepte que des mises à jour signées par le même éditeur
+
 ## 1.13.0
 - Fiabilité face au contrôle des applications de Windows (erreur 4551) : plus d'extraction dans le dossier temporaire, DLL ANGLE retirée (seul `ClasseControle.exe` n'est pas signé)
 - Scripts PowerShell remplacés par des commandes de l'application (`--setup`, `--update`, `--remove-games`, `--cleanup`)

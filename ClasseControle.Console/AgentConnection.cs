@@ -27,6 +27,8 @@ internal sealed class AgentConnection : IDisposable
     /// <summary>Restrictions appliquées à ce poste (applications et sites interdits).</summary>
     public RestrictionsPayload Restrictions { get; private set; } = new();
     public event Action<AgentConnection, string>? Notice;
+    /// <summary>Le filtrage web du poste a bloqué un site.</summary>
+    public event Action<AgentConnection, WebBlockedPayload>? WebBlocked;
 
     /// <summary>Applications ouvertes sur le poste (dernière liste reçue), l'active en premier.</summary>
     public IReadOnlyList<AppInfo> Apps { get; private set; } = Array.Empty<AppInfo>();
@@ -129,6 +131,11 @@ internal sealed class AgentConnection : IDisposable
                         Apps = al.Apps;
                         AppsChanged?.Invoke(this);
                     }
+                }
+                else if (env.Type == MessageType.WebBlocked)
+                {
+                    var w = Wire.Read<WebBlockedPayload>(env);
+                    if (w != null) WebBlocked?.Invoke(this, w);
                 }
                 else if (env.Type == MessageType.AgentNotice)
                 {

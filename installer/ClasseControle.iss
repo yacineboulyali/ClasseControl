@@ -19,11 +19,15 @@
 ;  utilisateurs » est cochée par défaut (aussi en silencieux). Pour ne pas la faire :
 ;    ClasseControle-Setup.exe /VERYSILENT /ROLE=eleve /ROOM=CLASSE /MERGETASKS="!supprjeux"
 ;
+;  Filtrage web renforcé (option « filtreweb », cochée par défaut) : stratégies des
+;  navigateurs qui imposent le proxy de filtrage. Pour ne pas l'installer :
+;    ClasseControle-Setup.exe /VERYSILENT /ROLE=eleve /ROOM=CLASSE /MERGETASKS="!filtreweb"
+;
 ;  Compilation : voir build.ps1 (publie l'application puis appelle ISCC).
 ; ============================================================================
 
 #define AppName "Classe_controle"
-#define AppVersion "1.13.0"
+#define AppVersion "1.14.0"
 #define Publisher "Classe_controle"
 
 [Setup]
@@ -46,6 +50,12 @@ Compression=lzma2/max
 SolidCompression=yes
 WizardStyle=modern
 CloseApplications=force
+; Signature de code (voir sign.ps1) : build.ps1 passe /DSIGN et l'outil « ccsign » quand un
+; certificat est configuré. Signe l'installateur ET le programme de désinstallation.
+#ifdef SIGN
+SignTool=ccsign
+SignedUninstaller=yes
+#endif
 
 [Languages]
 Name: "fr"; MessagesFile: "compiler:Languages\French.isl"
@@ -53,6 +63,7 @@ Name: "fr"; MessagesFile: "compiler:Languages\French.isl"
 [Tasks]
 ; Uniquement pour un poste élève (le rôle est choisi sur la page précédente).
 Name: "supprjeux"; Description: "Supprimer les jeux préinstallés de Windows pour TOUS les utilisateurs (Solitaire, Candy Crush, Minecraft, Mahjong, Démineur…)"; GroupDescription: "Poste élève :"; Check: IsStudent
+Name: "filtreweb"; Description: "Filtrage web renforcé : obliger Chrome, Edge, Brave et Firefox à passer par le filtrage du professeur (recommandé)"; GroupDescription: "Poste élève :"; Check: IsStudent
 Name: "majauto"; Description: "Mise à jour automatique depuis GitHub (recommandé) : vérification toutes les heures, installation sans intervention"; GroupDescription: "Mises à jour :"
 
 [InstallDelete]
@@ -83,6 +94,8 @@ Name: "{autoprograms}\Classe_controle — Guide"; Filename: "{app}\GUIDE.txt"; C
 ; Toute la configuration passe par ClasseControle.exe lui-même (aucun script à autoriser).
 Filename: "{app}\ClasseControle.exe"; Parameters: "--setup prof"; Flags: runhidden waituntilterminated; StatusMsg: "Configuration du poste du professeur…"; Check: IsTeacher
 Filename: "{app}\ClasseControle.exe"; Parameters: "--setup eleve"; Flags: runhidden waituntilterminated; StatusMsg: "Configuration du poste élève…"; Check: IsStudent
+Filename: "{app}\ClasseControle.exe"; Parameters: "--browser-policies on"; Flags: runhidden waituntilterminated; StatusMsg: "Filtrage web renforcé…"; Check: IsStudent; Tasks: filtreweb
+Filename: "{app}\ClasseControle.exe"; Parameters: "--browser-policies off"; Flags: runhidden waituntilterminated; Check: IsStudent; Tasks: not filtreweb
 Filename: "{app}\ClasseControle.exe"; Parameters: "--remove-games"; Flags: runhidden waituntilterminated; StatusMsg: "Suppression des jeux préinstallés de Windows (peut prendre une minute)…"; Tasks: supprjeux
 Filename: "{app}\ClasseControle.exe"; Parameters: "--setup-update"; Flags: runhidden waituntilterminated; StatusMsg: "Configuration de la mise à jour automatique…"; Tasks: majauto
 ; Démarre tout de suite dans la session de l'utilisateur.

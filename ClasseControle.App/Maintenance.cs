@@ -1,6 +1,8 @@
 using System.Diagnostics;
 using System.IO.Compression;
+using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
+using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Text.Json;
 using ClasseControle.Common;
@@ -17,6 +19,8 @@ namespace ClasseControle.App;
 ///   --setup-update       tâche planifiée SYSTEM de mise à jour automatique
 ///   --update             mise à jour depuis GitHub (lancée par la tâche, compte SYSTEM)
 ///   --remove-games       supprime les jeux préinstallés de Windows pour tous les utilisateurs
+///   --browser-policies on|off  filtrage web renforcé : Chrome, Edge, Brave et Firefox
+///                        obligés de suivre le proxy de Windows (donc le filtrage du professeur)
 ///   --cleanup            désinstallation : supprime tâches et règles du pare-feu
 /// </summary>
 [SupportedOSPlatform("windows")]
@@ -29,7 +33,7 @@ internal static class Maintenance
     private static string AppDir => Path.GetDirectoryName(Exe)!;
     private static string LogDir => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "Classe_controle");
 
-    public static bool IsCommand(string[] args) => args.Length > 0 && args[0] is "--setup" or "--setup-update" or "--update" or "--remove-games" or "--cleanup";
+    public static bool IsCommand(string[] args) => args.Length > 0 && args[0] is "--setup" or "--setup-update" or "--update" or "--remove-games" or "--cleanup" or "--browser-policies";
 
     public static int Run(string[] args)
     {
@@ -42,6 +46,7 @@ internal static class Maintenance
                 "--update" => Update(),
                 "--remove-games" => RemoveGames(),
                 "--cleanup" => Cleanup(),
+                "--browser-policies" => BrowserPolicies(args.Length < 2 || args[1] != "off"),
                 _ => 2,
             };
         }
@@ -116,6 +121,7 @@ internal static class Maintenance
         Process("schtasks.exe", $"/Delete /TN \"{AgentTask}\" /F");
         Process("schtasks.exe", $"/Delete /TN \"{AppVersion.UpdateTask}\" /F");
         DeleteFirewallRules();
+        BrowserPolicies(false);
         return 0;
     }
 
@@ -175,6 +181,134 @@ internal static class Maintenance
     }
 
     // =====================================================================
+    //  Filtrage web renforcé : stratégies des navigateurs
+    // =====================================================================
+    // Sans elles, un élève pourrait régler un autre proxy dans Firefox, ou lancer Chrome avec
+    // --proxy-server / --no-proxy-server, et échapper au filtrage web de l'agent.
+    private const string PolicyMarker = @"SOFTWARE\Classe_controle\BrowserPolicies";
+    private static readonly string[] ChromiumPolicyKeys =
+    {
+        @"SOFTWARE\Policies\Google\Chrome", @"SOFTWARE\Policies\Microsoft\Edge", @"SOFTWARE\Policies\BraveSoftware\Brave",
+    };
+    private const string FirefoxProxyKey = @"SOFTWARE\Policies\Mozilla\Firefox\Proxy";
+
+    private static int BrowserPolicies(bool enable)
+    {
+        if (enable)
+        {
+            foreach (var path in ChromiumPolicyKeys)
+            {
+                // « system » : le navigateur suit le proxy de Windows ; l'élève ne peut plus le changer.
+                using var k = Registry.LocalMachine.CreateSubKey(path);
+                k.SetValue("ProxyMode", "system", RegistryValueKind.String);
+            }
+            using (var f = Registry.LocalMachine.CreateSubKey(FirefoxProxyKey))
+            {
+                f.SetValue("Mode", "system", RegistryValueKind.String);
+                f.SetValue("Locked", 1, RegistryValueKind.DWord);
+            }
+            Registry.LocalMachine.CreateSubKey(PolicyMarker)?.Dispose();
+            Log("maintenance.log", "Filtrage web renforcé : stratégies des navigateurs posées.");
+            return 0;
+        }
+
+        // On ne retire que ce que Classe_controle a posé (marqueur), et seulement si inchangé.
+        using (var marker = Registry.LocalMachine.OpenSubKey(PolicyMarker))
+            if (marker == null) return 0;
+        foreach (var path in ChromiumPolicyKeys)
+        {
+            using var k = Registry.LocalMachine.OpenSubKey(path, writable: true);
+            if (k?.GetValue("ProxyMode") as string == "system") k.DeleteValue("ProxyMode", throwOnMissingValue: false);
+        }
+        using (var f = Registry.LocalMachine.OpenSubKey(FirefoxProxyKey, writable: true))
+        {
+            if (f?.GetValue("Mode") as string == "system")
+            {
+                f.DeleteValue("Mode", throwOnMissingValue: false);
+                f.DeleteValue("Locked", throwOnMissingValue: false);
+            }
+        }
+        Registry.LocalMachine.DeleteSubKeyTree(PolicyMarker, throwOnMissingSubKey: false);
+        Log("maintenance.log", "Filtrage web renforcé : stratégies des navigateurs retirées.");
+        return 0;
+    }
+
+    // =====================================================================
+    //  Signature de code (Authenticode)
+    // =====================================================================
+    /// <summary>Éditeur (sujet du certificat) si le fichier porte une signature valide, sinon null.</summary>
+    internal static string? SignedBy(string file)
+    {
+        if (!AuthenticodeValid(file)) return null;
+        try
+        {
+#pragma warning disable SYSLIB0057
+            using var cert = new X509Certificate2(X509Certificate.CreateFromSignedFile(file));
+#pragma warning restore SYSLIB0057
+            return cert.Subject;
+        }
+        catch { return null; }
+    }
+
+    private static bool AuthenticodeValid(string file)
+    {
+        var fileInfo = new WINTRUST_FILE_INFO
+        {
+            cbStruct = (uint)Marshal.SizeOf<WINTRUST_FILE_INFO>(),
+            pcwszFilePath = file,
+        };
+        IntPtr pFile = Marshal.AllocHGlobal(Marshal.SizeOf<WINTRUST_FILE_INFO>());
+        try
+        {
+            Marshal.StructureToPtr(fileInfo, pFile, false);
+            var data = new WINTRUST_DATA
+            {
+                cbStruct = (uint)Marshal.SizeOf<WINTRUST_DATA>(),
+                dwUIChoice = 2,            // WTD_UI_NONE
+                fdwRevocationChecks = 0,   // WTD_REVOKE_NONE
+                dwUnionChoice = 1,         // WTD_CHOICE_FILE
+                pFile = pFile,
+                dwStateAction = 0,
+                dwProvFlags = 0x00000080,  // WTD_REVOCATION_CHECK_NONE
+            };
+            var action = new Guid("00AAC56B-CD44-11d0-8CC2-00C04FC295EE"); // WINTRUST_ACTION_GENERIC_VERIFY_V2
+            return WinVerifyTrust(new IntPtr(-1), ref action, ref data) == 0;
+        }
+        catch { return false; }
+        finally { Marshal.FreeHGlobal(pFile); }
+    }
+
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+    private struct WINTRUST_FILE_INFO
+    {
+        public uint cbStruct;
+        [MarshalAs(UnmanagedType.LPWStr)] public string pcwszFilePath;
+        public IntPtr hFile;
+        public IntPtr pgKnownSubject;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct WINTRUST_DATA
+    {
+        public uint cbStruct;
+        public IntPtr pPolicyCallbackData;
+        public IntPtr pSIPClientData;
+        public uint dwUIChoice;
+        public uint fdwRevocationChecks;
+        public uint dwUnionChoice;
+        public IntPtr pFile;
+        public uint dwStateAction;
+        public IntPtr hWVTStateData;
+        public IntPtr pwszURLReference;
+        public uint dwProvFlags;
+        public uint dwUIContext;
+        public IntPtr pSignatureSettings;
+    }
+
+    [DllImport("wintrust.dll", CharSet = CharSet.Unicode)]
+    private static extern int WinVerifyTrust(IntPtr hwnd, ref Guid action, ref WINTRUST_DATA data);
+
+    // =====================================================================
     //  Mise à jour automatique (compte SYSTEM)
     // =====================================================================
     private static int Update()
@@ -219,6 +353,15 @@ internal static class Maintenance
             var info = FileVersionInfo.GetVersionInfo(newExe);
             var fileVersion = new Version(info.FileMajorPart, info.FileMinorPart, info.FileBuildPart);
             if (fileVersion != latest) { Log("update.log", $"Version du fichier {fileVersion} ≠ {latest.ToString(3)} : annulé"); return 1; }
+
+            // Signature de code : si la version installée est signée, la nouvelle doit l'être aussi,
+            // par le MÊME éditeur (empêche d'installer un exécutable modifié ou d'un autre auteur).
+            string? mine = SignedBy(Exe);
+            if (mine != null)
+            {
+                string? theirs = SignedBy(newExe);
+                if (theirs != mine) { Log("update.log", $"Signature absente ou d'un autre éditeur ({theirs ?? "aucune"}) : annulé"); return 1; }
+            }
 
             // Remplacement fichier par fichier (programme et bibliothèques) ; un fichier en cours
             // d'utilisation peut être renommé, pas écrasé. Retour arrière en cas d'erreur.

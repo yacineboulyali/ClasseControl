@@ -112,8 +112,8 @@ internal sealed class RestrictionsDialog : Window
 
         var tokens = new HashSet<string>(current.BlockedApps.Concat(current.BlockedSites), StringComparer.OrdinalIgnoreCase);
         _apps = MultiLine(current.BlockedApps.Where(a => !a.StartsWith('@')), "ex :\nchrome\nvlc", 90);
-        _sites = MultiLine(current.BlockedSites.Where(a => !a.StartsWith('@')), "ex :\nnetflix\nspotify", 70);
-        _allowed = MultiLine(current.AllowedSites, "ex :\nwikipedia\nmoodle\nofppt", 70);
+        _sites = MultiLine(current.BlockedSites.Where(a => !a.StartsWith('@')), "ex :\nnetflix.com\nspotify\n*.tiktok.com", 70);
+        _allowed = MultiLine(current.AllowedSites, "ex :\nwikipedia.org\nofppt.ma\nmoodle", 70);
         _web = new ComboBox
         {
             ItemsSource = new[] { "Sans restriction", "Sites interdits (catégories et liste ci-dessous)", "Sites approuvés uniquement", "Bloquer tout le web (navigateurs fermés)" },
@@ -130,13 +130,18 @@ internal sealed class RestrictionsDialog : Window
                                   "Astuce : le panneau « Applications ouvertes » de la console les affiche aussi."));
 
         var right = new StackPanel { Spacing = 6 };
-        right.Children.Add(Section("Accès au web", "Le blocage se fait sur le titre de l'onglet actif du navigateur."));
+        right.Children.Add(Section("Accès au web",
+            "Filtrage par nom de domaine (HTTP et HTTPS, sous-domaines compris) sur le poste élève, " +
+            "complété par le contrôle du titre de l'onglet. Les sites bloqués apparaissent dans le journal."));
         right.Children.Add(_web);
         foreach (var c in RestrictionCatalog.SiteCategories) right.Children.Add(CategoryBox(c, tokens.Contains(c.Token), _siteCats));
-        right.Children.Add(new TextBlock { Text = "Autres sites interdits (mot-clé, un par ligne) :", Margin = new Thickness(0, 6, 0, 0) });
+        right.Children.Add(new TextBlock { Text = "Autres sites interdits (domaine ou mot-clé, un par ligne) :", Margin = new Thickness(0, 6, 0, 0) });
         right.Children.Add(_sites);
         right.Children.Add(new TextBlock { Text = "Sites approuvés (mode « approuvés uniquement ») :" });
         right.Children.Add(_allowed);
+        right.Children.Add(Ui.Hint("Domaine (« wikipedia.org ») : le site et ses sous-domaines. Mot-clé (« moodle ») : tout domaine " +
+                                   "qui le contient. Les domaines techniques des grands sites (images, vidéos, connexion) sont ajoutés " +
+                                   "automatiquement, ainsi que le réseau de la salle."));
 
         var cols = new Grid { ColumnDefinitions = new ColumnDefinitions("*,24,*") };
         cols.Children.Add(left);

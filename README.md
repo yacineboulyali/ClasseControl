@@ -38,6 +38,7 @@ complémentaires » → « Exécuter quand même ».
 
 | Version | Téléchargements |
 |---|---|
+| **1.14.0** — filtrage web par domaine, signature de code | [Installateur](https://github.com/yacineboulyali/ClasseControl/releases/download/v1.14.0/ClasseControle-Setup.exe) · [ClasseControle.exe](https://github.com/yacineboulyali/ClasseControl/releases/download/v1.14.0/ClasseControle.exe) · [Portable (.zip)](https://github.com/yacineboulyali/ClasseControl/releases/download/v1.14.0/ClasseControle-portable.zip) · [Notes](https://github.com/yacineboulyali/ClasseControl/releases/tag/v1.14.0) |
 | **1.12.0** — demande de silence 🤫 | [Installateur](https://github.com/yacineboulyali/ClasseControl/releases/download/v1.12.0/ClasseControle-Setup.exe) · [ClasseControle.exe](https://github.com/yacineboulyali/ClasseControl/releases/download/v1.12.0/ClasseControle.exe) · [Portable (.zip)](https://github.com/yacineboulyali/ClasseControl/releases/download/v1.12.0/ClasseControle-portable.zip) · [Notes](https://github.com/yacineboulyali/ClasseControl/releases/tag/v1.12.0) |
 | **1.11.0** — annotation de l'écran, verrouillage Wi-Fi/Bluetooth | [Installateur](https://github.com/yacineboulyali/ClasseControl/releases/download/v1.11.0/ClasseControle-Setup.exe) · [ClasseControle.exe](https://github.com/yacineboulyali/ClasseControl/releases/download/v1.11.0/ClasseControle.exe) · [Portable (.zip)](https://github.com/yacineboulyali/ClasseControl/releases/download/v1.11.0/ClasseControle-portable.zip) · [Notes](https://github.com/yacineboulyali/ClasseControl/releases/tag/v1.11.0) |
 | **1.10.0** — mise à jour automatique depuis GitHub | [Installateur](https://github.com/yacineboulyali/ClasseControl/releases/download/v1.10.0/ClasseControle-Setup.exe) · [ClasseControle.exe](https://github.com/yacineboulyali/ClasseControl/releases/download/v1.10.0/ClasseControle.exe) · [Portable (.zip)](https://github.com/yacineboulyali/ClasseControl/releases/download/v1.10.0/ClasseControle-portable.zip) · [Notes](https://github.com/yacineboulyali/ClasseControl/releases/tag/v1.10.0) |
@@ -237,12 +238,45 @@ installer/               Installateur Inno Setup + scripts PowerShell (tâches
 - 📊 **Sondage rapide** avec modèles (Oui/Non, Compris ?, A-B-C-D, humeur…)
   et résultats en direct
 - 🌐 **Accès web** : sans restriction / sites interdits / **sites approuvés
-  uniquement** / **web bloqué**
+  uniquement** / **web bloqué** — filtrage par nom de domaine, voir « Filtrage web avancé »
 - 🚀 **Lancement rapide** : favoris configurables (Word, Excel, sites…)
 - 🖥 **Bureau élève** : réduire toutes les fenêtres, fermer toutes les applications
 - ✋ **Demandes d'aide** : liste des mains levées dans le ruban
 - 📜 **Journal des actions** du professeur, enregistré automatiquement dans
   `Documents\Classe_controle\journal-AAAA-MM-JJ.csv`
+
+## Filtrage web avancé
+
+Le filtrage se fait par **nom de domaine**, en HTTP **et en HTTPS**, et ne dépend plus du
+seul titre de l'onglet :
+
+| Couche | Rôle |
+|---|---|
+| **Proxy de filtrage local** (127.0.0.1, dans l'agent) | Décide site par site. En HTTPS, le navigateur annonce le nom du site (requête `CONNECT`) avant d'ouvrir la connexion chiffrée : le site est refusé sans rien déchiffrer, **aucun certificat à installer**, le trafic autorisé reste chiffré de bout en bout. En HTTP, une page « ⛔ Site bloqué » s'affiche. |
+| **Réglages proxy de Windows surveillés** | Vérifiés toutes les 2 secondes, rétablis si l'élève les modifie. Fonctionne sans droits administrateur. |
+| **Stratégies des navigateurs** (option d'installation « Filtrage web renforcé », cochée par défaut ; `ClasseControle.exe --browser-policies on/off`) | Chrome, Edge, Brave et Firefox sont obligés de suivre le proxy de Windows : impossible de le changer dans le navigateur ou avec `--proxy-server`. |
+| **Pare-feu** (si l'agent a les droits administrateur) | Les navigateurs ne peuvent plus joindre Internet directement (TCP 80/443 et QUIC) : ils doivent passer par le filtrage. |
+| **Titre de l'onglet** (comme avant) | Complément en mode « sites interdits ». |
+
+Écrire les sites :
+
+- **domaine** : `youtube.com` bloque aussi `www.youtube.com`, `m.youtube.com`… ; `*.tiktok.com` et une URL
+  collée (`https://fr.wikipedia.org/wiki/Maroc`) sont acceptés ;
+- **mot-clé** (sans point) : `moodle` vise tout domaine qui le contient (`moodle.monlycee.ma`) ;
+- les **catégories** (réseaux sociaux, vidéo, jeux en ligne) contiennent leurs domaines, CDN compris
+  (`googlevideo.com`, `fbcdn.net`, `tiktokcdn.com`…).
+
+En mode **« sites approuvés uniquement »**, les domaines techniques nécessaires sont ajoutés tout seuls
+(images de Wikipédia, vidéos de YouTube, connexion Microsoft / Google, vérification des certificats).
+Le **réseau de la salle** (IP privées, noms sans point comme le poste du professeur) n'est jamais filtré.
+
+Chaque site bloqué est inscrit dans le **journal de la console** (« Site bloqué », poste, élève, domaine),
+au plus une fois toutes les 2 minutes par site.
+
+> Limites : une application qui ignore le proxy de Windows n'est filtrée que par le pare-feu (agent
+> administrateur). Les postes déjà installés reçoivent le proxy de filtrage par la mise à jour
+> automatique ; les stratégies des navigateurs demandent de relancer l'installateur (ou
+> `ClasseControle.exe --browser-policies on` en administrateur).
 
 ## Installation (recommandée)
 
@@ -271,6 +305,8 @@ ClasseControle-Setup.exe /VERYSILENT /ROLE=eleve /ROOM=CLASSE
 ClasseControle-Setup.exe /VERYSILENT /ROLE=prof
 rem Poste élève sans supprimer les jeux :
 ClasseControle-Setup.exe /VERYSILENT /ROLE=eleve /ROOM=CLASSE /MERGETASKS="!supprjeux"
+rem Sans les stratégies « Filtrage web renforcé » des navigateurs :
+ClasseControle-Setup.exe /VERYSILENT /ROLE=eleve /ROOM=CLASSE /MERGETASKS="!filtreweb"
 rem Sans mise à jour automatique :
 ClasseControle-Setup.exe /VERYSILENT /ROLE=eleve /ROOM=CLASSE /MERGETASKS="!majauto"
 ```
@@ -295,7 +331,7 @@ l'application ; se compile aussi depuis Linux).
 ```bash
 # Application unique (exe autonome, console + agent)
 dotnet publish ClasseControle.App/ClasseControle.App.csproj \
-  -c Release -r win-x64 --self-contained true -p:Version=1.13.0 \
+  -c Release -r win-x64 --self-contained true -p:Version=1.14.0 \
   -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=false \
   -p:EnableCompressionInSingleFile=true -p:DebugType=none -o publish/app
 ```
@@ -353,11 +389,26 @@ L'installateur Inno Setup, lui, s'exécute toujours depuis le dossier temporaire
 poste qui bloque ce dossier, installer avec la version portable, ou faire autoriser l'installateur.
 
 **Solution définitive : signer le code.** Les fichiers (`ClasseControle.exe` et l'installateur)
-doivent être signés avec un certificat de signature de code reconnu par Microsoft. Pistes :
-[SignPath Foundation](https://signpath.org/) (gratuit pour les projets open source sous licence
-reconnue, ex. MIT), certificat *Open Source Code Signing* de Certum, ou *Azure Trusted Signing*.
-La signature se branche ensuite sur la publication automatique : toutes les versions
-publiées seront signées.
+doivent être signés avec un certificat de signature de code reconnu par Microsoft.
+**Depuis la 1.14.0, la signature est branchée** sur la construction (`installer/sign.ps1`,
+appelé par `build.ps1` et par Inno Setup) : il suffit d'ajouter le certificat dans les
+**secrets du dépôt** (GitHub › Settings › Secrets and variables › Actions) puis de publier une
+nouvelle version. Toutes les versions suivantes seront signées (exécutable, installateur,
+désinstallateur).
+
+| Certificat | Secrets à créer |
+|---|---|
+| **Azure Trusted Signing** (service Microsoft, environ 10 $/mois ; disponibilité selon le pays) | `CC_TS_ENDPOINT` (ex. `https://weu.codesigning.azure.net`), `CC_TS_ACCOUNT`, `CC_TS_PROFILE`, `AZURE_TENANT_ID`, `AZURE_CLIENT_ID`, `AZURE_CLIENT_SECRET` (application Entra ID avec le rôle « Trusted Signing Certificate Profile Signer ») |
+| **Certificat .pfx** (Sectigo, SSL.com, Certum… avec clé exportable) | `CC_SIGN_PFX_BASE64` (le .pfx en Base64 : `[Convert]::ToBase64String([IO.File]::ReadAllBytes("cert.pfx"))`), `CC_SIGN_PFX_PASSWORD` |
+
+Autre piste gratuite : [SignPath Foundation](https://signpath.org/) pour les projets open source
+(exige une licence reconnue, ex. MIT, à ajouter au dépôt).
+
+**En attendant la signature**, chaque version publie `SHA256SUMS.txt` : le service informatique
+peut autoriser les fichiers **par leur empreinte** (WDAC, AppLocker, Intune).
+
+Une fois signée, la mise à jour automatique n'accepte plus que des versions signées par le
+**même éditeur**.
 
 > SmartScreen (« Windows a protégé votre ordinateur », avec le bouton « Exécuter quand
 > même ») est un autre mécanisme, moins strict ; la signature le fait aussi disparaître
@@ -368,6 +419,7 @@ publiées seront signées.
 - Le **code de salle** sert de mot de passe entre la console et les agents :
   choisissez-en un propre à votre salle et gardez-le pour vous.
 - Les échanges se font sur le réseau local (UDP 5401, TCP 5402), non chiffrés.
+- Le filtrage web ne déchiffre jamais le trafic HTTPS des élèves (seul le nom du site est lu).
 - Les mises à jour automatiques n'installent que la version officielle publiée
   sur ce dépôt GitHub (HTTPS), après vérification de la taille et de la version.
 - Ctrl+Alt+Suppr reste toujours géré par Windows.
@@ -381,7 +433,6 @@ Voir [CHANGELOG.md](CHANGELOG.md).
 - Chiffrement TLS du canal de contrôle
 - Contrôle des imprimantes et des clés USB
 - Planificateur de travaux (devoirs à rendre, minuterie de séance)
-- Blocage des sites au niveau réseau (proxy / DNS) en complément du blocage par titre
 
 ## Licence
 
