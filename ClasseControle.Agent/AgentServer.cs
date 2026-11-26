@@ -38,6 +38,8 @@ internal interface IAgentHost
     void SetInputLock(bool locked);
     /// <summary>Annotations du professeur sur l'écran de l'élève.</summary>
     void Annotate(AnnotationPayload annotation);
+    /// <summary>Demande de silence (emoji 🤫 + son).</summary>
+    void ShowSilence(SilencePayload silence);
     void AnnouncementChanged(bool live, string speaker);
     void RewardChanged(RewardPayload reward);
     void ShowSurvey(SurveyPayload survey);
@@ -491,6 +493,10 @@ internal sealed class AgentServer
                                               : "Vous pouvez de nouveau gérer le Wi-Fi et le Bluetooth.", 5);
                             }
                         }
+                        break;
+
+                    case MessageType.Silence:
+                        _host.ShowSilence(Wire.Read<SilencePayload>(env) ?? new SilencePayload());
                         break;
 
                     case MessageType.Annotate:

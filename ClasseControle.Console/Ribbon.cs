@@ -82,6 +82,7 @@ internal static class Glyph
         ArrowTool = "M5 19L19 5M10 5H19V14",
         Undo = "M9 14L4 9L9 4M4 9H14.5A5.5 5.5 0 0 1 14.5 20H11",
         WifiLock = "M2 8.5A14 14 0 0 1 19 6M5 12A9.5 9.5 0 0 1 14.5 10M8.5 15.5A4.5 4.5 0 0 1 11.5 14.5M10.5 19H10.51M16 16H22V21H16ZM17 16V14.5A2 2 0 0 1 21 14.5V16",
+        Silence = "M21 12A9 9 0 1 1 3 12A9 9 0 1 1 21 12ZM8.5 9.5H8.51M15.5 9.5H15.51M9.5 15H11M13 15H14.5M12 11.5V20.5",
         Wifi = "M4.5 19.5H7V16H4.5ZM10.5 19.5H13V12H10.5ZM16.5 19.5H19V8H16.5Z";
 
     /// <summary>Icône vectorielle à la taille demandée. Sans couleur imposée, elle suit les styles (survol, actif).</summary>

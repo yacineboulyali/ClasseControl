@@ -38,6 +38,7 @@ complémentaires » → « Exécuter quand même ».
 
 | Version | Téléchargements |
 |---|---|
+| **1.12.0** — demande de silence 🤫 | [Installateur](https://github.com/yacineboulyali/ClasseControl/releases/download/v1.12.0/ClasseControle-Setup.exe) · [ClasseControle.exe](https://github.com/yacineboulyali/ClasseControl/releases/download/v1.12.0/ClasseControle.exe) · [Portable (.zip)](https://github.com/yacineboulyali/ClasseControl/releases/download/v1.12.0/ClasseControle-portable.zip) · [Notes](https://github.com/yacineboulyali/ClasseControl/releases/tag/v1.12.0) |
 | **1.11.0** — annotation de l'écran, verrouillage Wi-Fi/Bluetooth | [Installateur](https://github.com/yacineboulyali/ClasseControl/releases/download/v1.11.0/ClasseControle-Setup.exe) · [ClasseControle.exe](https://github.com/yacineboulyali/ClasseControl/releases/download/v1.11.0/ClasseControle.exe) · [Portable (.zip)](https://github.com/yacineboulyali/ClasseControl/releases/download/v1.11.0/ClasseControle-portable.zip) · [Notes](https://github.com/yacineboulyali/ClasseControl/releases/tag/v1.11.0) |
 | **1.10.0** — mise à jour automatique depuis GitHub | [Installateur](https://github.com/yacineboulyali/ClasseControl/releases/download/v1.10.0/ClasseControle-Setup.exe) · [ClasseControle.exe](https://github.com/yacineboulyali/ClasseControl/releases/download/v1.10.0/ClasseControle.exe) · [Portable (.zip)](https://github.com/yacineboulyali/ClasseControl/releases/download/v1.10.0/ClasseControle-portable.zip) · [Notes](https://github.com/yacineboulyali/ClasseControl/releases/tag/v1.10.0) |
 | **1.9.1** — installateur : suppression des jeux Windows pour tous les utilisateurs | [Installateur](https://github.com/yacineboulyali/ClasseControl/releases/download/v1.9.1/ClasseControle-Setup.exe) · [ClasseControle.exe](https://github.com/yacineboulyali/ClasseControl/releases/download/v1.9.1/ClasseControle.exe) · [Portable (.zip)](https://github.com/yacineboulyali/ClasseControl/releases/download/v1.9.1/ClasseControle-portable.zip) · [Notes](https://github.com/yacineboulyali/ClasseControl/releases/tag/v1.9.1) |
@@ -116,6 +117,9 @@ se compile avec `installer\build.ps1` (voir « Compilation »). Liste complète 
 
 ![Espace d'équipe](docs/images/eleve-espace-equipe.png)
 *Espace d'équipe : document partagé édité à plusieurs en même temps et discussion de l'équipe.*
+
+![Demande de silence](docs/images/eleve-silence.png)
+*Demande de silence : l'emoji 🤫 apparaît au premier plan avec un son de notification.*
 
 ![Message du professeur](docs/images/eleve-message.png)
 *Message du professeur : consigne affichée au premier plan.*
@@ -206,6 +210,9 @@ installer/               Installateur Inno Setup + scripts PowerShell (tâches
 - 🧩 **Applications ouvertes** : bouton de la barre latérale qui partage l'écran en deux ;
   en bas, pour chaque poste (PC), l'élève, l'**icône et le titre de l'application sur
   laquelle il travaille** et ses autres applications (clic droit : fermer)
+- 🤫 **Demander le silence** : un clic affiche chez les élèves l'emoji 🤫 (visage avec
+  un doigt sur la bouche) et un message, avec un son de notification ; fermeture
+  automatique après quelques secondes
 - ✏ **Annoter l'écran d'un élève** : stylo, surligneur, rectangle, cercle, flèche,
   6 couleurs, 3 épaisseurs, annuler (Ctrl+Z), tout effacer ; l'élève voit les traits
   en direct sur son propre écran

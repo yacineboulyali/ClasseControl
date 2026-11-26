@@ -61,6 +61,7 @@ public enum MessageType
     UpdateNow = 84,       // lancer tout de suite la recherche de mise à jour (tâche planifiée)
     NetLock = 85,         // verrouiller / libérer le Wi-Fi et le Bluetooth de l'élève
     Annotate = 86,        // annotations du professeur dessinées par-dessus l'écran de l'élève
+    Silence = 87,         // demande de silence : emoji 🤫 + son de notification chez l'élève
     Survey = 75,          // sondage rapide envoyé aux élèves
     SurveyClose = 76,     // fin du sondage
     SetRestrictions = 70, // liste d'applications / sites interdits
@@ -439,4 +440,12 @@ public sealed class AnnotationPayload
     public AnnotationStroke? Stroke { get; set; }
     /// <summary>Pour Undo : tracé à retirer.</summary>
     public int StrokeId { get; set; }
+}
+
+public sealed class SilencePayload
+{
+    public string Message { get; set; } = "Silence, s'il vous plaît";
+    /// <summary>Durée d'affichage chez l'élève (secondes).</summary>
+    public int DurationSeconds { get; set; } = 6;
+    public bool Sound { get; set; } = true;
 }

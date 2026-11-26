@@ -1,5 +1,5 @@
 ╔══════════════════════════════════════════════════════════════════╗
-║   CLASSE_CONTROLE — Supervision de salle informatique (v1.11)       ║
+║   CLASSE_CONTROLE — Supervision de salle informatique (v1.12)       ║
 ║   Équivalent libre et original de type "NetSupport School"         ║
 ╚══════════════════════════════════════════════════════════════════╝
 
@@ -125,6 +125,10 @@ switch / même sous-réseau).
           suite la dernière version (Internet doit être actif) ;
         - « Vérifier les mises à jour » : pour la console elle-même.
         Un ⟳ orange à côté du nom d'un poste = version plus ancienne.
+     🤫 Silence (groupe Communiquer) → l'emoji 🤫 et « Silence, s'il
+        vous plaît » s'affichent chez les élèves avec un son de
+        notification (fermeture automatique après 6 s). Variantes :
+        sans son, ou avec votre propre message.
      ✏ Annoter l'écran → sélectionnez un poste puis « Annoter l'écran »
         (ou clic droit sur la vignette › Annoter). Dessinez avec le
         stylo, le surligneur, le rectangle, le cercle ou la flèche ;
@@ -215,4 +219,4 @@ switch / même sous-réseau).
   • Outil destiné à un usage pédagogique encadré, sur des postes dont
     vous avez la responsabilité. Informez les utilisateurs.
 
-Bon cours !  —  Classe_controle v1.11
+Bon cours !  —  Classe_controle v1.12

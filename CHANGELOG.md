@@ -2,6 +2,9 @@
 
 Toutes les versions publiées : [page des versions](https://github.com/yacineboulyali/ClasseControl/releases).
 
+## 1.12.0
+- Demande de silence : emoji 🤫 + son de notification chez les élèves (message personnalisable, variante sans son)
+
 ## 1.11.0
 - Annotation de l'écran d'un élève (stylo, surligneur, formes, flèches, couleurs) visible en direct chez l'élève
 - Verrouillage du Wi-Fi et du Bluetooth (marche/arrêt, mode avion, changement de réseau)

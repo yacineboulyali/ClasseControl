@@ -24,6 +24,7 @@ public sealed class App : Application, IAgentHost
     private ChatWindow? _chat;
     private InputLockBanner? _inputBanner;
     private AnnotationOverlay? _annotation;
+    private SilenceWindow? _silence;
     private SurveyPopup? _survey;
     private int _stars;
 
@@ -275,6 +276,21 @@ public sealed class App : Application, IAgentHost
             _inputBanner = null;
         }
         if (_tray != null) _tray.ToolTipText = locked ? "Classe_controle — clavier et souris bloqués" : "Classe_controle — Agent";
+    });
+
+    public void ShowSilence(SilencePayload silence) => Dispatcher.UIThread.Post(() =>
+    {
+        int seconds = Math.Clamp(silence.DurationSeconds, 0, 60);
+        string text = string.IsNullOrWhiteSpace(silence.Message) ? "Silence, s'il vous plaît" : silence.Message.Trim();
+        if (_silence == null)
+        {
+            _silence = new SilenceWindow(text, seconds);
+            _silence.Closed += (_, _) => _silence = null;
+            _silence.Show();
+        }
+        else _silence.Renew(text, seconds);
+        if (silence.Sound) Chime.Play();
+        RaiseTop();
     });
 
     public void Annotate(AnnotationPayload annotation) => Dispatcher.UIThread.Post(() =>

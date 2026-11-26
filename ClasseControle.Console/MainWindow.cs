@@ -290,6 +290,11 @@ internal sealed class MainWindow : Window
         _announceBtn = Ribbon.Big(Glyph.Mic, "Annonce", () => Run(ToggleAnnounceAsync));
         _helpBtn = Ribbon.Big(Glyph.Help, "Demandes d'aide", menu: HelpMenu());
         var communicate = Ribbon.Group("Communiquer",
+            Ribbon.Big(Glyph.Silence, "Silence", menu: Ribbon.Menu(
+                ("🤫  Demander le silence", () => Run(() => SilenceAsync(Targets()))),
+                ("🤫  Silence sans son", () => Run(() => SilenceAsync(Targets(), sound: false))),
+                ("-", () => { }),
+                ("Message personnalisé…", () => Run(() => SilenceCustomAsync(Targets()))))),
             Ribbon.Big(Glyph.Chat, "Discussion", () => OpenChat(Targets())),
             _announceBtn,
             Ribbon.Big(Glyph.Message, "Message", menu: MessageMenu(() => Targets())),
@@ -420,6 +425,7 @@ internal sealed class MainWindow : Window
                 new Border { Height = 1, Background = Palette.Line, Margin = new Thickness(12, 8) },
                 Item(Glyph.Projector, "Montrer mon écran", () => Run(ShowMyScreenAsync)),
                 _sideAnnounce,
+                Item(Glyph.Silence, "Demander le silence 🤫", () => Run(() => SilenceAsync(Targets()))),
                 Item(Glyph.Blocked, "Applications et sites interdits", () => Run(() => EditRestrictionsAsync())),
                 (_sideNet = Item(Glyph.WebOff, "Couper / rétablir Internet", () => Run(() => ToggleInternetAsync(Targets())))),
                 Item(Glyph.SoundOff, "Couper / rétablir le son", () => Run(() => ToggleMuteAsync(Targets()))),
@@ -637,6 +643,7 @@ internal sealed class MainWindow : Window
             {
                 new TextBlock { Text = "Gérer", FontSize = 11.5, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(6, 0, 8, 0) },
                 IconCmd(Glyph.Blocked, "Applications et sites interdits pour ce(s) poste(s)…", () => Run(() => EditRestrictionsAsync(targets))),
+                IconCmd(Glyph.Silence, "Demander le silence 🤫", () => Run(() => SilenceAsync(targets))),
                 IconCmd(Glyph.Hand, "Baisser la main", () => Run(() => LowerHandAsync(targets))),
                 IconCmd(Glyph.Power, "Éteindre", () => Run(() => PowerAsync(targets, "éteindre", c => c.Shutdown(10, "Arrêt demandé par le professeur")))),
                 IconCmd(Glyph.Refresh, "Redémarrer", () => Run(() => PowerAsync(targets, "redémarrer", c => c.Restart(10, "Redémarrage demandé par le professeur")))),
@@ -933,6 +940,25 @@ internal sealed class MainWindow : Window
         }
         _appsPanel.Invalidate();
         SetStatus(show ? "Applications ouvertes : liste mise à jour toutes les 2 secondes." : "Panneau des applications masqué.");
+    }
+
+    // ---------- Silence ----------
+    /// <summary>Demande de silence : emoji 🤫 + son de notification sur les postes visés.</summary>
+    private async Task SilenceAsync(IReadOnlyList<AgentConnection> targets, bool sound = true, string? message = null)
+    {
+        if (targets.Count == 0) { SetStatus("Aucun poste connecté."); return; }
+        var p = new SilencePayload { Sound = sound };
+        if (!string.IsNullOrWhiteSpace(message)) p.Message = message.Trim();
+        foreach (var c in targets) { try { await c.Send(MessageType.Silence, p); } catch { } }
+        Log("Demande de silence", targets, p.Message);
+        SetStatus($"🤫 Silence demandé à {targets.Count} poste(s).");
+    }
+
+    private async Task SilenceCustomAsync(IReadOnlyList<AgentConnection> targets)
+    {
+        var dlg = new InputDialog("Demander le silence", "Message affiché sous l'emoji 🤫 :", "ex : Silence, je vais expliquer l'exercice", "Silence, s'il vous plaît");
+        await dlg.ShowDialog(this);
+        if (!string.IsNullOrWhiteSpace(dlg.Result)) await SilenceAsync(targets, true, dlg.Result);
     }
 
     // ---------- Wi-Fi / Bluetooth ----------
