@@ -209,6 +209,15 @@ switch / même sous-réseau).
   • Les .exe ne sont pas signés : Windows SmartScreen / l'antivirus
     peuvent afficher un avertissement au 1er lancement
     (« Informations complémentaires » → « Exécuter quand même »).
+  • « Erreur 4551 : Une stratégie de contrôle d'application a bloqué
+    ce fichier » : Windows refuse les programmes non signés.
+      - PC personnel Windows 11 : Sécurité Windows › Contrôle des
+        applications et du navigateur › Smart App Control. S'il est
+        activé, il bloque Classe_controle (le désactiver ne peut pas
+        être annulé sans réinstaller Windows).
+      - PC de l'établissement : demander au service informatique
+        d'autoriser Classe_controle. Ne pas contourner la stratégie.
+      La solution définitive est une version signée numériquement.
   • Le contrôle à distance ne peut pas piloter les fenêtres UAC
     (« Voulez-vous autoriser… ») ni un logiciel lancé en administrateur
     si l'agent n'est pas lui-même administrateur.

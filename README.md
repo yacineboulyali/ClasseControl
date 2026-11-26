@@ -316,6 +316,30 @@ RoomCode=CLASSE          # doit être identique à celui de la console
 DisplayName=NOM-DU-PC    # nom affiché dans la console
 ```
 
+## Windows bloque l'installation (erreur 4551)
+
+Message : *« Impossible d'exécuter un fichier depuis le dossier temporaire… Erreur 4551 :
+Une stratégie de contrôle d'application a bloqué ce fichier »*.
+
+Ce n'est pas un défaut du programme : c'est le **contrôle des applications de Windows**,
+qui refuse les programmes **non signés numériquement**. Deux cas :
+
+| Cas | Comment le reconnaître | Solution |
+|---|---|---|
+| **Smart App Control** (Windows 11, PC personnel) | Sécurité Windows › Contrôle des applications et du navigateur › *Smart App Control* est **Activé** | Le désactiver sur ce PC (⚠ il ne peut être réactivé qu'en réinstallant Windows), ou attendre la version signée |
+| **Stratégie de l'établissement** (WDAC / Intune, PC gérés par le service informatique) | PC fourni par l'établissement ; Smart App Control désactivé ou absent | Demander au service informatique d'**autoriser Classe_controle** (par empreinte du fichier ou par éditeur une fois signé). Ne pas contourner la stratégie |
+
+**Solution définitive : signer le code.** Les fichiers (`ClasseControle.exe` et l'installateur)
+doivent être signés avec un certificat de signature de code reconnu par Microsoft. Pistes :
+[SignPath Foundation](https://signpath.org/) (gratuit pour les projets open source sous licence
+reconnue, ex. MIT), certificat *Open Source Code Signing* de Certum, ou *Azure Trusted Signing*.
+La signature se branche ensuite sur la publication automatique : toutes les versions
+publiées seront signées.
+
+> SmartScreen (« Windows a protégé votre ordinateur », avec le bouton « Exécuter quand
+> même ») est un autre mécanisme, moins strict ; la signature le fait aussi disparaître
+> avec le temps.
+
 ## Sécurité
 
 - Le **code de salle** sert de mot de passe entre la console et les agents :
