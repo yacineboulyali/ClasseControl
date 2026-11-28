@@ -401,8 +401,9 @@ désinstallateur).
 | **Azure Trusted Signing** (service Microsoft, environ 10 $/mois ; disponibilité selon le pays) | `CC_TS_ENDPOINT` (ex. `https://weu.codesigning.azure.net`), `CC_TS_ACCOUNT`, `CC_TS_PROFILE`, `AZURE_TENANT_ID`, `AZURE_CLIENT_ID`, `AZURE_CLIENT_SECRET` (application Entra ID avec le rôle « Trusted Signing Certificate Profile Signer ») |
 | **Certificat .pfx** (Sectigo, SSL.com, Certum… avec clé exportable) | `CC_SIGN_PFX_BASE64` (le .pfx en Base64 : `[Convert]::ToBase64String([IO.File]::ReadAllBytes("cert.pfx"))`), `CC_SIGN_PFX_PASSWORD` |
 
-Autre piste gratuite : [SignPath Foundation](https://signpath.org/) pour les projets open source
-(exige une licence reconnue, ex. MIT, à ajouter au dépôt).
+**Gratuit : [SignPath Foundation](https://signpath.org/)** pour les projets open source. Le dépôt
+est prêt (licence MIT, politique de signature, étapes SignPath dans le workflow) : suivre
+[installer/signpath/LISEZMOI.md](installer/signpath/LISEZMOI.md).
 
 **En attendant la signature**, chaque version publie `SHA256SUMS.txt` : le service informatique
 peut autoriser les fichiers **par leur empreinte** (WDAC, AppLocker, Intune).
@@ -434,6 +435,38 @@ Voir [CHANGELOG.md](CHANGELOG.md).
 - Contrôle des imprimantes et des clés USB
 - Planificateur de travaux (devoirs à rendre, minuterie de séance)
 
+## Politique de signature du code (Code signing policy)
+
+Free code signing provided by [SignPath.io](https://about.signpath.io/), certificate by
+[SignPath Foundation](https://signpath.org/).
+*Signature de code gratuite fournie par SignPath.io, certificat de SignPath Foundation.*
+
+- Seuls les fichiers **construits par GitHub Actions** à partir du code de ce dépôt
+  (workflow `.github/workflows/installateur.yml`) sont signés : `ClasseControle.exe` et
+  `ClasseControle-Setup-*.exe`. Aucun fichier construit ailleurs n'est signé.
+- **Rôles** :
+  - Auteur, relecteur et approbateur des signatures : [yacineboulyali](https://github.com/yacineboulyali)
+    (propriétaire du dépôt) ;
+  - chaque demande de signature est **approuvée manuellement** sur SignPath avant publication.
+- Mise en place : [installer/signpath/LISEZMOI.md](installer/signpath/LISEZMOI.md).
+
+## Confidentialité (Privacy policy)
+
+This program does not transfer any personal information to other networked systems. Apart
+from actions explicitly requested by the teacher (for example opening a website on the
+students' computers), the only Internet connections it makes on its own are update checks
+against GitHub (`api.github.com`, `github.com`), which send nothing but the program version.
+
+Concrètement :
+- les échanges entre la console du professeur et les postes élèves restent **sur le réseau
+  local de la salle** ;
+- les seules connexions Internet faites d'elles-mêmes par l'application sont des
+  **vérifications de mise à jour** sur GitHub : par la console du professeur à son
+  démarrage, et toutes les heures par la tâche de mise à jour si l'option « Mise à jour
+  automatique » a été choisie à l'installation. Seul le numéro de version est transmis ;
+- aucune donnée (noms d'élèves, écrans, journaux, sites visités) n'est envoyée à l'auteur ni à
+  un tiers ; le journal et la liste de présence restent sur le poste du professeur.
+
 ## Licence
 
-À définir par l'auteur (ex. MIT). Code original.
+[MIT](LICENSE) — code original.

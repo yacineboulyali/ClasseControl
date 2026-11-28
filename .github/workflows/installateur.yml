@@ -13,6 +13,7 @@ on:
 
 permissions:
   contents: write
+  actions: read   # SignPath lit les fichiers à signer envoyés par actions/upload-artifact
 
 jobs:
   publier:
@@ -46,16 +47,72 @@ jobs:
             choco install innosetup -y --no-progress
           }
 
-      # Construit les deux .exe puis l'installateur. En cas d'échec de l'installateur,
-      # la version est quand même publiée avec les .exe et le journal de construction.
-      # Signature de code (contre SmartScreen et l'erreur 4551) : active si un certificat est
-      # configuré dans les secrets du dépôt (Settings → Secrets and variables → Actions).
-      # Voir installer/sign.ps1 :
-      #   • certificat .pfx : CC_SIGN_PFX_BASE64 + CC_SIGN_PFX_PASSWORD ;
-      #   • Azure Trusted Signing : CC_TS_ENDPOINT, CC_TS_ACCOUNT, CC_TS_PROFILE,
-      #     AZURE_TENANT_ID, AZURE_CLIENT_ID, AZURE_CLIENT_SECRET.
-      # Sans secret : construction non signée, comme avant.
-      - name: Construire exécutables et installateur
+      # Signature de code (contre Smart App Control, SmartScreen et l'erreur 4551).
+      # Deux possibilités, choisies selon ce qui est configuré dans le dépôt
+      # (Settings → Secrets and variables → Actions) :
+      #   • SignPath Foundation (gratuit, projets open source) : variable SIGNPATH_ORGANIZATION_ID
+      #     + secret SIGNPATH_API_TOKEN — voir installer/signpath/LISEZMOI.md ;
+      #   • certificat .pfx ou Azure Trusted Signing : voir installer/sign.ps1.
+      # Sans rien de configuré : construction non signée, comme avant.
+      - name: Construire le programme
+        if: steps.version.outputs.exists != 'true'
+        shell: pwsh
+        env:
+          CC_SIGN_PFX_BASE64: ${{ secrets.CC_SIGN_PFX_BASE64 }}
+          CC_SIGN_PFX_PASSWORD: ${{ secrets.CC_SIGN_PFX_PASSWORD }}
+          CC_TS_ENDPOINT: ${{ secrets.CC_TS_ENDPOINT }}
+          CC_TS_ACCOUNT: ${{ secrets.CC_TS_ACCOUNT }}
+          CC_TS_PROFILE: ${{ secrets.CC_TS_PROFILE }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+        run: |
+          powershell -ExecutionPolicy Bypass -File installer\build.ps1 -Stage app *>&1 | Tee-Object -FilePath build-log.txt
+          if (-not (Test-Path publish\app\ClasseControle.exe)) { throw "Programme non produit" }
+
+      # --- SignPath : 1) ClasseControle.exe (version installée + fichier unique) ---
+      - name: Envoyer le programme à signer (SignPath)
+        id: programme-a-signer
+        if: steps.version.outputs.exists != 'true' && vars.SIGNPATH_ORGANIZATION_ID != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: programme-a-signer
+          path: |
+            publish/app/ClasseControle.exe
+            publish/single/ClasseControle.exe
+          if-no-files-found: error
+
+      - name: Signer le programme (SignPath)
+        if: steps.version.outputs.exists != 'true' && vars.SIGNPATH_ORGANIZATION_ID != ''
+        uses: signpath/github-action-submit-signing-request@v1
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG || 'ClasseControl' }}
+          signing-policy-slug: ${{ vars.SIGNPATH_POLICY_SLUG || 'release-signing' }}
+          artifact-configuration-slug: programme
+          github-artifact-id: ${{ steps.programme-a-signer.outputs.artifact-id }}
+          wait-for-completion: true
+          # La politique « release-signing » demande une approbation manuelle sur signpath.io.
+          wait-for-completion-timeout-in-seconds: 3600
+          output-artifact-directory: signe/programme
+
+      - name: Remplacer par le programme signé
+        if: steps.version.outputs.exists != 'true' && vars.SIGNPATH_ORGANIZATION_ID != ''
+        shell: pwsh
+        run: |
+          foreach ($d in 'app', 'single') {
+            $src = Get-ChildItem signe\programme -Recurse -Filter ClasseControle.exe | Where-Object { $_.Directory.Name -eq $d } | Select-Object -First 1
+            if (-not $src) { throw "ClasseControle.exe signé introuvable ($d)" }
+            $sig = Get-AuthenticodeSignature $src.FullName
+            if ($sig.Status -ne 'Valid') { throw "Signature invalide ($d) : $($sig.Status)" }
+            Copy-Item $src.FullName "publish\$d\ClasseControle.exe" -Force
+            Write-Host "$d : signé par $($sig.SignerCertificate.Subject)"
+          }
+
+      # En cas d'échec de l'installateur, la version est quand même publiée avec les .exe et
+      # le journal de construction.
+      - name: Construire l'installateur
         if: steps.version.outputs.exists != 'true'
         id: build
         continue-on-error: true
@@ -70,8 +127,42 @@ jobs:
           AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
           AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
         run: |
-          powershell -ExecutionPolicy Bypass -File installer\build.ps1 *>&1 | Tee-Object -FilePath build-log.txt
+          powershell -ExecutionPolicy Bypass -File installer\build.ps1 -Stage installer *>&1 | Tee-Object -FilePath build-log.txt -Append
           if (-not (Get-ChildItem publish\installer\*.exe -ErrorAction SilentlyContinue)) { throw "Installateur non produit" }
+
+      # --- SignPath : 2) l'installateur ---
+      - name: Envoyer l'installateur à signer (SignPath)
+        id: installateur-a-signer
+        if: steps.version.outputs.exists != 'true' && vars.SIGNPATH_ORGANIZATION_ID != '' && steps.build.outcome == 'success'
+        uses: actions/upload-artifact@v4
+        with:
+          name: installateur-a-signer
+          path: publish/installer/*.exe
+          if-no-files-found: error
+
+      - name: Signer l'installateur (SignPath)
+        if: steps.version.outputs.exists != 'true' && vars.SIGNPATH_ORGANIZATION_ID != '' && steps.build.outcome == 'success'
+        uses: signpath/github-action-submit-signing-request@v1
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG || 'ClasseControl' }}
+          signing-policy-slug: ${{ vars.SIGNPATH_POLICY_SLUG || 'release-signing' }}
+          artifact-configuration-slug: installateur
+          github-artifact-id: ${{ steps.installateur-a-signer.outputs.artifact-id }}
+          wait-for-completion: true
+          wait-for-completion-timeout-in-seconds: 3600
+          output-artifact-directory: signe/installateur
+
+      - name: Remplacer par l'installateur signé
+        if: steps.version.outputs.exists != 'true' && vars.SIGNPATH_ORGANIZATION_ID != '' && steps.build.outcome == 'success'
+        shell: pwsh
+        run: |
+          $src = Get-ChildItem signe\installateur -Recurse -Filter *.exe | Select-Object -First 1
+          if (-not $src) { throw "Installateur signé introuvable" }
+          $sig = Get-AuthenticodeSignature $src.FullName
+          if ($sig.Status -ne 'Valid') { throw "Signature invalide de l'installateur : $($sig.Status)" }
+          Copy-Item $src.FullName (Join-Path publish\installer $src.Name) -Force
 
       - name: Préparer les fichiers
         if: steps.version.outputs.exists != 'true'

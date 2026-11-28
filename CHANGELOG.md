@@ -2,6 +2,10 @@
 
 Toutes les versions publiées : [page des versions](https://github.com/yacineboulyali/ClasseControl/releases).
 
+## Non publié
+- Signature gratuite par **SignPath Foundation** préparée : licence MIT, politique de signature et confidentialité dans le README, étapes SignPath dans le workflow (programme signé avant l'installateur, puis installateur), guide `installer/signpath/LISEZMOI.md`
+- `build.ps1 -Stage app|installer` pour signer le programme avant de construire l'installateur
+
 ## 1.14.0
 - Filtrage web avancé par **nom de domaine** (HTTP et HTTPS, sous-domaines compris) : proxy de filtrage local sur le poste élève, sans déchiffrement ni certificat à installer
 - Catégories de sites enrichies de leurs domaines (CDN compris : googlevideo, fbcdn, tiktokcdn…) ; listes libres en domaine (« netflix.com », « *.tiktok.com », URL collée) ou mot-clé
