@@ -28,6 +28,8 @@ internal static class Discovery
         // Envoi sur le broadcast global + broadcasts dirigés de chaque interface.
         var targets = new List<IPEndPoint> { new(IPAddress.Broadcast, Net.DiscoveryPort) };
         targets.AddRange(DirectedBroadcasts().Select(ip => new IPEndPoint(ip, Net.DiscoveryPort)));
+        // Ce poste lui-même : permet d'essayer console + agent élève sur un seul PC.
+        targets.Add(new IPEndPoint(IPAddress.Loopback, Net.DiscoveryPort));
         foreach (var ep in targets)
         {
             try { await udp.SendAsync(probe, probe.Length, ep); } catch { }

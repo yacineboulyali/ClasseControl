@@ -10,6 +10,11 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      essai:
+        description: "Publier une VERSION D'ESSAI (pré-version, ignorée par la mise à jour automatique)"
+        type: boolean
+        default: true
 
 permissions:
   contents: write
@@ -27,6 +32,12 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          if ("${{ github.event_name }}" -eq 'workflow_dispatch' -and "${{ inputs.essai }}" -eq 'true') {
+            # Version d'essai : toujours construite, publiée en pré-version avec un nom daté.
+            "tag=essai-$(Get-Date -Format 'yyyyMMdd-HHmm')" >> $env:GITHUB_OUTPUT
+            "exists=false" >> $env:GITHUB_OUTPUT
+            exit 0
+          }
           $v = (Select-String -Path installer\ClasseControle.iss -Pattern '#define AppVersion "([^"]+)"').Matches[0].Groups[1].Value
           "tag=v$v" >> $env:GITHUB_OUTPUT
           gh release view "v$v" --repo "${{ github.repository }}" *> $null
@@ -198,6 +209,19 @@ jobs:
           $tag = "${{ steps.version.outputs.tag }}"
           $files = Get-ChildItem out | ForEach-Object { $_.FullName }
           gh release create $tag @files --target "${{ github.sha }}" --title "Classe_controle $($tag.TrimStart('v'))" --notes-file .github/release-notes.md --latest
+
+      # Version d'essai : pré-version GitHub. Elle n'est jamais « latest » : la mise à jour
+      # automatique des postes (releases/latest) ne la voit pas.
+      - name: Créer la version d'essai (pré-version)
+        if: github.event_name == 'workflow_dispatch' && inputs.essai
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = "${{ steps.version.outputs.tag }}"
+          $files = Get-ChildItem out | ForEach-Object { $_.FullName }
+          gh release create $tag @files --target "${{ github.sha }}" --prerelease --latest=false `
+            --title "Version d'essai ($($tag.Substring(6)))" --notes-file .github/release-notes-essai.md
 
       - uses: actions/upload-artifact@v4
         if: github.event_name == 'workflow_dispatch'
