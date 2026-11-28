@@ -5,6 +5,7 @@ Toutes les versions publiées : [page des versions](https://github.com/yacinebou
 ## Non publié
 - Signature gratuite par **SignPath Foundation** préparée : licence MIT, politique de signature et confidentialité dans le README, étapes SignPath dans le workflow (programme signé avant l'installateur, puis installateur), guide `installer/signpath/LISEZMOI.md`
 - `build.ps1 -Stage app|installer` pour signer le programme avant de construire l'installateur
+- Installateur : essai de lancement de `ClasseControle.exe` AVANT l'installation ; s'il est bloqué par Windows (Smart App Control / erreur 4551, AppLocker, antivirus), message clair en français et en arabe et rien n'est installé (au lieu de « CreateProcess a échoué ; code 4551 »)
 
 ## 1.14.0
 - Filtrage web avancé par **nom de domaine** (HTTP et HTTPS, sous-domaines compris) : proxy de filtrage local sur le poste élève, sans déchiffrement ni certificat à installer

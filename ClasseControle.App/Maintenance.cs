@@ -22,6 +22,8 @@ namespace ClasseControle.App;
 ///   --browser-policies on|off  filtrage web renforcé : Chrome, Edge, Brave et Firefox
 ///                        obligés de suivre le proxy de Windows (donc le filtrage du professeur)
 ///   --cleanup            désinstallation : supprime tâches et règles du pare-feu
+///   --check              ne fait rien (code 0) : l'installateur vérifie ainsi que Windows
+///                        autorise ce programme avant d'installer quoi que ce soit
 /// </summary>
 [SupportedOSPlatform("windows")]
 internal static class Maintenance
@@ -33,7 +35,7 @@ internal static class Maintenance
     private static string AppDir => Path.GetDirectoryName(Exe)!;
     private static string LogDir => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "Classe_controle");
 
-    public static bool IsCommand(string[] args) => args.Length > 0 && args[0] is "--setup" or "--setup-update" or "--update" or "--remove-games" or "--cleanup" or "--browser-policies";
+    public static bool IsCommand(string[] args) => args.Length > 0 && args[0] is "--setup" or "--setup-update" or "--update" or "--remove-games" or "--cleanup" or "--browser-policies" or "--check";
 
     public static int Run(string[] args)
     {
@@ -46,6 +48,7 @@ internal static class Maintenance
                 "--update" => Update(),
                 "--remove-games" => RemoveGames(),
                 "--cleanup" => Cleanup(),
+                "--check" => 0,
                 "--browser-policies" => BrowserPolicies(args.Length < 2 || args[1] != "off"),
                 _ => 2,
             };
